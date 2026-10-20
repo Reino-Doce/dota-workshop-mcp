@@ -78,8 +78,11 @@ test("registered paths persist, detect builds, and drive MCP selection without m
   assert.equal((await registeredInstallationPaths()).length, 2);
 
   const previousClient = getVConsole(29017);
+  // Discovery must use the requested endpoint even when the previous one is invalid.
+  process.env.DOTA2_VCONPORT = "invalid";
   const selected = await call("dota_select_installation", { installationId: old.installationId, vconPort: 29017 });
   assert.equal(selected.activeVersion, "2439");
+  assert.equal(process.env.DOTA2_VCONPORT, "29017");
   assert.notEqual(getVConsole(29017), previousClient, "switching releases old clients");
   assert.equal((await resolveDotaPaths())?.root, old.root);
   const lua = await call("lua_api_get", { name: "CreateUnitByName" });
