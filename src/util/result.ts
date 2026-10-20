@@ -1,4 +1,5 @@
 // Helpers for building MCP tool results.
+import { VConsoleError } from "../dota/vconsole-protocol.js";
 
 export type ContentItem =
   | { type: "text"; text: string }
@@ -46,6 +47,9 @@ export function guard<A extends unknown[]>(
       return await fn(...args);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      if (err instanceof VConsoleError) {
+        return { ...error(message), structuredContent: { error: { code: err.code, message, retryable: err.retryable } } };
+      }
       return error(`Error: ${message}`);
     }
   };

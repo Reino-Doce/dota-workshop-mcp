@@ -19,6 +19,7 @@ import { registerPreviewTools } from "./tools/preview.tools.js";
 import { registerRecordTools } from "./tools/record.tools.js";
 import { registerDiagnoseTools } from "./tools/diagnose.tools.js";
 import { registerImageTools } from "./tools/image.tools.js";
+import { registerVConsoleTools } from "./tools/vconsole.tools.js";
 import { apiStats } from "./api/search.js";
 import { panoramaStats } from "./api/panorama.js";
 import { SHARING_GUIDE, SERVER_INSTRUCTIONS } from "./guide/sharing.js";
@@ -50,6 +51,7 @@ export function createServer(): McpServer {
   registerRecordTools(server);
   registerDiagnoseTools(server);
   registerImageTools(server);
+  registerVConsoleTools(server);
 
   // A small read-only resource describing the bundled VScript API.
   server.registerResource(

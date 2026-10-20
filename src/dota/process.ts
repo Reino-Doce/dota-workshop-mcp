@@ -53,21 +53,20 @@ export function run(exe: string, args: string[], opts: RunOptions = {}): Promise
 }
 
 /** Launch a process detached (fire-and-forget), e.g. dota2.exe. */
-export function spawnDetached(exe: string, args: string[], cwd?: string): { command: string; pid?: number } {
-  const child = spawn(exe, args, { cwd, detached: true, stdio: "ignore", windowsHide: false });
-  child.unref();
-  return { command: quoteCommand(exe, args), pid: child.pid };
+export function spawnDetached(exe: string, args: string[], cwd?: string): Promise<{ command: string; pid?: number }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(exe, args, { cwd, detached: true, stdio: "ignore", windowsHide: false });
+    child.once("error", reject);
+    child.once("spawn", () => {
+      child.unref();
+      resolve({ command: quoteCommand(exe, args), pid: child.pid });
+    });
+  });
 }
 
 /** The platform-appropriate npm executable. */
 export function npmCommand(): string {
   return process.platform === "win32" ? "npm.cmd" : "npm";
-}
-
-/** Force-kill a process by image name (best effort; succeeds even if not running). */
-export async function killProcess(image: string): Promise<RunResult> {
-  if (process.platform === "win32") return run("taskkill", ["/F", "/IM", image], { timeoutMs: 15_000 });
-  return run("pkill", ["-f", image], { timeoutMs: 15_000 });
 }
 
 function quoteCommand(exe: string, args: string[]): string {

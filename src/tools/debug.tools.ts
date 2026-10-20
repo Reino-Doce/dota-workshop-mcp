@@ -6,7 +6,8 @@ import { resolveProject } from "../config.js";
 import { requireDotaPaths, DotaPaths } from "../dota/paths.js";
 import { getVConsole, defaultVconPort, ConsoleLine } from "../dota/vconsole.js";
 import { buildLaunchArgs } from "../dota/launch.js";
-import { run, spawnDetached, killProcess, npmCommand } from "../dota/process.js";
+import { run, spawnDetached, npmCommand } from "../dota/process.js";
+import { findDotaProcess } from "../dota/target.js";
 import { ensureDir } from "../util/fsx.js";
 import { captureWindowPng } from "../dota/capture.js";
 import { json, text, image, error, guard, ToolResult } from "../util/result.js";
@@ -43,12 +44,16 @@ export async function restartGame(
   cheats: boolean,
   reconnect: boolean,
 ): Promise<{ pid?: number; command: string; killed: boolean; reconnected: boolean }> {
-  const args = buildLaunchArgs({ addon, map, insecure: true, dev: true, cheats, vconPort: port });
+  const args = buildLaunchArgs({ addon, map, insecure: true, dev: true, cheats, vconPort: port, legacy: dota.versionFamily === "2017" });
   const command = `"${dota.dota2Exe}" ${args.join(" ")}`;
+  const target = await findDotaProcess(port);
+  if (target && target.path.toLowerCase() !== dota.dota2Exe.toLowerCase()) throw new Error("Installation selection changed before restart; retry with the intended selection.");
   getVConsole(port).disconnect();
-  const kill = await killProcess("dota2.exe");
+  const kill = target ? await run("taskkill", ["/F", "/PID", String(target.pid)], { timeoutMs: 15000 }) : undefined;
+  if (kill && kill.code !== 0) throw new Error("Could not stop the selected Dota process; no replacement was launched.");
   await sleep(1500); // let the OS release file locks
-  const { pid } = spawnDetached(dota.dota2Exe, args, dota.binWin64);
+  const { pid } = await spawnDetached(dota.dota2Exe, args, dota.binWin64);
+  if (pid && target && process.env.DOTA2_PID === String(target.pid)) process.env.DOTA2_PID = String(pid);
   let reconnected = false;
   if (reconnect) {
     try {
@@ -58,7 +63,7 @@ export async function restartGame(
       /* still loading */
     }
   }
-  return { pid, command, killed: kill.code === 0, reconnected };
+  return { pid, command, killed: kill?.code === 0, reconnected };
 }
 
 export function registerDebugTools(server: McpServer) {
@@ -72,7 +77,7 @@ export function registerDebugTools(server: McpServer) {
       inputSchema: {
         command: z.string().describe("Console command, e.g. 'script_reload', 'dump_entities', 'sv_cheats 1'."),
         vconPort: z.number().int().min(1).max(65535).optional(),
-        waitMs: z.number().int().optional().describe("How long to collect output (default 2000ms)."),
+        waitMs: z.number().int().min(1).max(120000).optional().describe("Command deadline, including queue time (default 2000ms)."),
       },
     },
     guard(async ({ command, vconPort, waitMs }): Promise<ToolResult> => {
@@ -110,8 +115,7 @@ export function registerDebugTools(server: McpServer) {
       } catch {
         return error(VCON_HINT);
       }
-      let lines = vc.recent(limit ?? 200);
-      if (grep) lines = lines.filter((l) => l.text.includes(grep));
+      const lines = vc.logs({ limit: limit ?? 200, pattern: grep });
       return json({ count: lines.length, lines: lines.map((l) => l.text) }, formatLines(lines) || "(console buffer empty)");
     }),
   );
@@ -158,7 +162,7 @@ export function registerDebugTools(server: McpServer) {
       title: "Restart the game",
       description:
         "Full relaunch for changes that can't hot-reload (KV files, new/removed scripts, structural changes): " +
-        "kills dota2.exe (releases file locks), relaunches tools mode on the map, and reconnects VConsole.",
+        "stops only the selected Dota process, relaunches tools mode on the map, and reconnects VConsole.",
       inputSchema: {
         projectRoot: z.string().optional(),
         addon: z.string().optional(),
@@ -170,12 +174,12 @@ export function registerDebugTools(server: McpServer) {
       },
     },
     guard(async ({ projectRoot, addon, map, vconPort, cheats, reconnect, dryRun }): Promise<ToolResult> => {
-      const dota = await requireDotaPaths();
+      const dota = await requireDotaPaths(vconPort);
       const name = addon ?? (await resolveProject(projectRoot)).addonName;
       const port = vconPort ?? defaultVconPort();
       if (dryRun) {
-        const args = buildLaunchArgs({ addon: name, map, insecure: true, dev: true, cheats: cheats !== false, vconPort: port });
-        return text(`[dry run]\ntaskkill /F /IM dota2.exe\n"${dota.dota2Exe}" ${args.join(" ")}`);
+        const args = buildLaunchArgs({ addon: name, map, insecure: true, dev: true, cheats: cheats !== false, vconPort: port, legacy: dota.versionFamily === "2017" });
+        return text(`[dry run]\nStop only the process matching the selected executable and VConsole port ${port}.\n"${dota.dota2Exe}" ${args.join(" ")}`);
       }
       const r = await restartGame(dota, name, map, port, cheats !== false, reconnect !== false);
       return json(
@@ -205,7 +209,7 @@ export function registerDebugTools(server: McpServer) {
       const project = await resolveProject(projectRoot);
       const kind = changeType ?? "auto";
       const steps: string[] = [];
-      const dota = await requireDotaPaths();
+      const dota = await requireDotaPaths(vconPort);
       const port = vconPort ?? defaultVconPort();
 
       // 1) Build (TS templates only).
@@ -274,7 +278,7 @@ export function registerDebugTools(server: McpServer) {
       },
     },
     guard(async ({ method, quality, focus, vconPort }): Promise<ToolResult> => {
-      const dota = await requireDotaPaths();
+      const dota = await requireDotaPaths(vconPort);
       const raw = method ?? "auto";
       // Normalize aliases: 'game' === 'console' (in-game render); 'window' === screen capture.
       const mode = raw === "game" ? "console" : raw;
@@ -296,7 +300,7 @@ export function registerDebugTools(server: McpServer) {
           await ensureDir(dir);
           const before = new Set(await readdir(dir).catch(() => []));
           const sinceMs = Date.now() - 1000;
-          vc.send(`jpeg ${quality ?? 90}`);
+          await vc.send(`jpeg ${quality ?? 90}`);
           const isImg = (n: string) => /\.(jpe?g|png|tga)$/i.test(n);
           let found: string | undefined;
           // Pick the NEWEST qualifying image (a brand-new name always beats an old file
@@ -334,7 +338,7 @@ export function registerDebugTools(server: McpServer) {
 
       // Window capture (and the auto fallback): grab the dota2 window via the OS.
       const captureMode = raw === "print" ? "print" : "screen";
-      const res = await captureWindowPng(captureMode, focus !== false);
+      const res = await captureWindowPng(captureMode, focus !== false, vconPort);
       if (res.buf && res.buf.length) {
         const label = captureMode === "print" ? "PrintWindow, may be black for 3D" : "real screen pixels";
         return image(res.buf.toString("base64"), "image/png", `Screenshot (window: ${label}, ${Math.round(res.buf.length / 1024)} KB)`);
@@ -383,12 +387,12 @@ export function registerDebugTools(server: McpServer) {
       }
       // vprof: on -> wait -> generate report (capture) -> off.
       const win = windowMs ?? 3000;
-      vc.send("vprof_off");
+      await vc.send("vprof_off");
       await sleep(150);
-      vc.send("vprof_on");
+      await vc.send("vprof_on");
       await sleep(win);
       const report = await vc.sendAndCapture("vprof_generate_report", nextSentinel(), 6000);
-      vc.send("vprof_off");
+      await vc.send("vprof_off");
       const lines = report.map((l) => l.text).filter((t) => t.trim().length);
       const cap = limit ?? 120;
       const shown = lines.slice(0, cap);

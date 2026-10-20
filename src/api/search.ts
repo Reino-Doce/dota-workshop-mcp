@@ -1,6 +1,7 @@
 // Search + lookup over the bundled Dota 2 VScript API.
 
 import { ApiClass, ApiEnum, ApiFunction, loadApi } from "./loader.js";
+import { ApiDatasetMetadata, ApiVersionSelection } from "./version.js";
 
 export type ApiKind = "class" | "function" | "method" | "enum" | "all";
 
@@ -32,9 +33,9 @@ function firstLine(s?: string): string | undefined {
 
 export async function searchApi(
   query: string,
-  opts: { kind?: ApiKind; limit?: number; available?: string } = {},
+  opts: { kind?: ApiKind; limit?: number; available?: string; version?: ApiVersionSelection } = {},
 ): Promise<SearchHit[]> {
-  const api = await loadApi();
+  const api = await loadApi(opts.version);
   const kind = opts.kind ?? "all";
   const limit = opts.limit ?? 25;
   const hits: SearchHit[] = [];
@@ -109,8 +110,8 @@ export async function searchApi(
   return hits.slice(0, limit);
 }
 
-export async function getClass(name: string, includeInherited = false): Promise<(ApiClass & { inheritedFrom?: Record<string, string> }) | undefined> {
-  const api = await loadApi();
+export async function getClass(name: string, includeInherited = false, version?: ApiVersionSelection): Promise<(ApiClass & { inheritedFrom?: Record<string, string> }) | undefined> {
+  const api = await loadApi(version);
   const lower = name.toLowerCase();
   const cls = api.classes.find((c) => c.name.toLowerCase() === lower);
   if (!cls) return undefined;
@@ -138,27 +139,27 @@ export async function getClass(name: string, includeInherited = false): Promise<
   return { ...cls, methods, inheritedFrom };
 }
 
-export async function getFunction(name: string): Promise<ApiFunction | undefined> {
-  const api = await loadApi();
+export async function getFunction(name: string, version?: ApiVersionSelection): Promise<ApiFunction | undefined> {
+  const api = await loadApi(version);
   const lower = name.toLowerCase();
   return api.functions.find((f) => f.name.toLowerCase() === lower);
 }
 
-export async function getMethod(className: string, methodName: string): Promise<{ owner: string; method: ApiFunction } | undefined> {
-  const cls = await getClass(className, true);
+export async function getMethod(className: string, methodName: string, version?: ApiVersionSelection): Promise<{ owner: string; method: ApiFunction } | undefined> {
+  const cls = await getClass(className, true, version);
   if (!cls) return undefined;
   const m = cls.methods.find((x) => x.name.toLowerCase() === methodName.toLowerCase());
   if (!m) return undefined;
   return { owner: (cls as any).inheritedFrom?.[m.name] ?? cls.name, method: m };
 }
 
-export async function getEnum(name: string): Promise<ApiEnum | undefined> {
-  const api = await loadApi();
+export async function getEnum(name: string, version?: ApiVersionSelection): Promise<ApiEnum | undefined> {
+  const api = await loadApi(version);
   const lower = name.toLowerCase();
   return api.enums.find((e) => e.name.toLowerCase() === lower);
 }
 
-export async function apiStats(): Promise<{ classes: number; functions: number; enums: number; generatedAt?: string }> {
-  const api = await loadApi();
-  return { classes: api.classes.length, functions: api.functions.length, enums: api.enums.length, generatedAt: api.generatedAt };
+export async function apiStats(version?: ApiVersionSelection): Promise<{ classes: number; functions: number; enums: number; generatedAt?: string; metadata: ApiDatasetMetadata }> {
+  const api = await loadApi(version);
+  return { classes: api.classes.length, functions: api.functions.length, enums: api.enums.length, generatedAt: api.generatedAt, metadata: api.metadata };
 }

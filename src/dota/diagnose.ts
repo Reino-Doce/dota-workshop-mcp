@@ -12,6 +12,7 @@ import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run } from "./process.js";
+import { findDotaProcess } from "./target.js";
 
 export type WindowRole = "game" | "assert" | "stall" | "crash" | "dialog" | "tools" | "noise" | "other";
 
@@ -93,7 +94,8 @@ function severity(role: WindowRole): number {
   }
 }
 
-const PS_DIAGNOSE = String.raw`$ErrorActionPreference = 'Stop'
+const PS_DIAGNOSE = String.raw`param([int]$TargetPid)
+$ErrorActionPreference = 'Stop'
 Add-Type @"
 using System;
 using System.Collections.Generic;
@@ -115,7 +117,7 @@ public class Diag {
   public static string Cls(IntPtr h) { var sb = new StringBuilder(256); GetClassName(h, sb, 256); return sb.ToString(); }
 }
 "@
-$procs = @(Get-Process dota2 -ErrorAction SilentlyContinue)
+$procs = @(Get-Process -Id $TargetPid -ErrorAction SilentlyContinue)
 $out = @()
 foreach ($p in $procs) {
   $wins = @()
@@ -145,17 +147,19 @@ function toArray<T>(x: T[] | T | null | undefined): T[] {
   return Array.isArray(x) ? x : [x];
 }
 
-/** Enumerate every dota2 process's top-level windows, classify them, and flag blocking modals. */
-export async function diagnoseDota(): Promise<DotaDiagnosis> {
+/** Enumerate the selected process's top-level windows and flag blocking modals. */
+export async function diagnoseDota(vconPort?: number): Promise<DotaDiagnosis> {
   if (process.platform !== "win32") {
     return { running: false, processes: [], blocked: false, blockers: [], summary: "Window diagnosis is Windows-only." };
   }
+  const target = await findDotaProcess(vconPort);
+  if (!target) return { running: false, processes: [], blocked: false, blockers: [], summary: "The selected Dota installation is not running." };
   const dir = await mkdtemp(join(tmpdir(), "d2diag-"));
   const ps1 = join(dir, "diag.ps1");
   let raw = "[]";
   try {
     await writeFile(ps1, PS_DIAGNOSE, "utf8");
-    const res = await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1], { timeoutMs: 25_000, maxOutputChars: 200_000 });
+    const res = await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, String(target.pid)], { timeoutMs: 25_000, maxOutputChars: 200_000 });
     raw = res.stdout.trim() || "[]";
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
@@ -227,9 +231,9 @@ function buildSummary(d: Pick<DotaDiagnosis, "running" | "processes" | "blocked"
 }
 
 /** One-line hint for appending to other tools' empty-capture errors, or "" when healthy. */
-export async function dotaBlockerHint(): Promise<string> {
+export async function dotaBlockerHint(vconPort?: number): Promise<string> {
   try {
-    const d = await diagnoseDota();
+    const d = await diagnoseDota(vconPort);
     if (!d.running || !d.blocked) return "";
     const b = d.blockers[0];
     const first = (b.message || "").split("\n").find((l) => /assert|map |using|error|stall|crash/i.test(l)) || b.title;

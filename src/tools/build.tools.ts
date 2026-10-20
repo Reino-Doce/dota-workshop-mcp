@@ -102,18 +102,19 @@ export function registerBuildTools(server: McpServer) {
       },
     },
     guard(async ({ projectRoot, addon, map, console: withConsole, vconPort, dryRun }): Promise<ToolResult> => {
-      const dota = await requireDotaPaths();
+      const dota = await requireDotaPaths(vconPort);
       const { name } = await resolveAddonName(projectRoot, addon);
       const args = buildLaunchArgs({
         addon: name,
         map,
         console: withConsole !== false,
         dev: true,
+        legacy: dota.versionFamily === "2017",
         vconPort: vconPort ?? defaultVconPort(),
       });
       const cmd = `"${dota.dota2Exe}" ${args.join(" ")}`;
       if (dryRun) return text(`[dry run]\n${cmd}`);
-      const { pid } = spawnDetached(dota.dota2Exe, args, dota.binWin64);
+      const { pid } = await spawnDetached(dota.dota2Exe, args, dota.binWin64);
       return json({ command: cmd, pid, addon: name }, `Launched Workshop Tools (pid ${pid}):\n${cmd}`);
     }),
   );
@@ -135,19 +136,20 @@ export function registerBuildTools(server: McpServer) {
       },
     },
     guard(async ({ projectRoot, addon, map, vconPort, cheats, dryRun }): Promise<ToolResult> => {
-      const dota = await requireDotaPaths();
+      const dota = await requireDotaPaths(vconPort);
       const { name } = await resolveAddonName(projectRoot, addon);
       const args = buildLaunchArgs({
         addon: name,
         map,
         insecure: true,
         dev: true,
+        legacy: dota.versionFamily === "2017",
         cheats: cheats !== false,
         vconPort: vconPort ?? defaultVconPort(),
       });
       const cmd = `"${dota.dota2Exe}" ${args.join(" ")}`;
       if (dryRun) return text(`[dry run]\n${cmd}`);
-      const { pid } = spawnDetached(dota.dota2Exe, args, dota.binWin64);
+      const { pid } = await spawnDetached(dota.dota2Exe, args, dota.binWin64);
       return json({ command: cmd, pid, addon: name, map }, `Launching custom game "${name}" on "${map}" (pid ${pid}):\n${cmd}`);
     }),
   );

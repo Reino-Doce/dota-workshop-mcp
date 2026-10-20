@@ -31,7 +31,7 @@ export function registerDiagnosticsTools(server: McpServer) {
       const report: Record<string, unknown> = {};
 
       if (!dota) {
-        report.dota = { found: false, hint: "Set DOTA2_PATH to your 'dota 2 beta' folder." };
+        report.dota = { found: false, hint: "Register your installation with dota_register_installation, or set DOTA2_PATH." };
       } else {
         report.dota = {
           found: true,
@@ -40,6 +40,11 @@ export function registerDiagnosticsTools(server: McpServer) {
           dota2Exe: (await pathExists(dota.dota2Exe)) ? dota.dota2Exe : `MISSING: ${dota.dota2Exe}`,
           resourceCompiler: (await pathExists(dota.resourceCompilerExe)) ? dota.resourceCompilerExe : "missing",
           workshopTools: await hasWorkshopTools(dota),
+          build: dota.build ?? null,
+          vconsoleExe: (await pathExists(dota.vconsoleExe)) ? dota.vconsoleExe : "missing",
+          compatibility: dota.versionFamily === "2017"
+            ? "Legacy installation. Bundled API references and scaffold templates describe newer releases; verify available APIs in the running game."
+            : "Bundled API data may differ from the installed build.",
         };
       }
 

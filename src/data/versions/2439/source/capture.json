@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "source": "Dota 2 engine help commands",
+  "capturedAt": "2026-10-20T14:22:40.590Z",
+  "build": {
+    "ClientVersion": "2439",
+    "ServerVersion": "2439",
+    "ProductName": "dota2_workshop",
+    "appID": "570",
+    "ServerAppID": "373310",
+    "CustomGameServerAppID": "471280",
+    "ToolsAppID": "316570",
+    "SourceRevision": "4163623",
+    "VersionDate": "Oct 03 2017",
+    "VersionTime": "14:17:48"
+  },
+  "executableSha256": "cdd270b165b5fac74abd67bc1288e02ecf8a08c411716a6d43cbf243c8581f0d",
+  "protocol": "d3",
+  "completion": "VConsole marker round trip after each command",
+  "textEncoding": "UTF-8; each PRNT message separated by LF",
+  "captures": [
+    {
+      "command": "script_help2",
+      "file": "script_help2.txt",
+      "bytes": 345003,
+      "sha256": "9bbbcfc285436e64208189fb633b1a65cd0fc829167aead134fc7dba2e0ce1c6",
+      "printMessages": 2620,
+      "completed": true
+    },
+    {
+      "command": "cl_script_help2",
+      "file": "cl_script_help2.txt",
+      "bytes": 108822,
+      "sha256": "50a07ef568e34b8252767d842d4968ecbebdd333b1850ccd98846c858e03c9e6",
+      "printMessages": 935,
+      "completed": true
+    },
+    {
+      "command": "cl_panorama_script_help_2",
+      "file": "cl_panorama_script_help_2.txt",
+      "bytes": 106408,
+      "sha256": "3dd406102282b32f5d5a657f8b674cf37f72845730152886ba1498e79e3a4283",
+      "printMessages": 6040,
+      "completed": true
+    }
+  ]
+}

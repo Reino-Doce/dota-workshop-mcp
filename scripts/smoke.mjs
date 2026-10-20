@@ -5,13 +5,18 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { mkdir, writeFile, readFile, rm, readdir } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile, readFile, rm, readdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { existsSync } from "node:fs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const tmp = join(root, ".tmp-verify-addon");
+const tmp = await mkdtemp(join(tmpdir(), "dota-mcp-smoke-"));
+async function cleanup() {
+  if (dirname(resolve(tmp)) !== resolve(tmpdir())) throw new Error("Unexpected smoke directory.");
+  await rm(tmp, { recursive: true, force: true });
+}
 
 let passed = 0;
 let failed = 0;
@@ -26,7 +31,6 @@ function check(name, cond, detail = "") {
 }
 
 async function setupTempAddon() {
-  await rm(tmp, { recursive: true, force: true });
   await mkdir(join(tmp, "src", "vscripts", "lib"), { recursive: true });
   await mkdir(join(tmp, "src", "panorama"), { recursive: true });
   await mkdir(join(tmp, "game", "scripts", "npc"), { recursive: true });
@@ -47,7 +51,7 @@ async function main() {
     command: "node",
     args: [join(root, "dist", "index.js")],
     // Point the reference library at the throwaway addon dir so reflib checks are deterministic.
-    env: { ...process.env, DOTA2_ADDON_DIR: tmp, DOTA2_REFLIB_DIR: join(tmp, "reflib") },
+    env: { ...process.env, DOTA2_ADDON_DIR: tmp, DOTA2_REFLIB_DIR: join(tmp, "reflib"), DOTA2_INSTALLATIONS_DIR: join(tmp, "installations") },
   });
   const client = new Client({ name: "smoke", version: "1.0.0" });
   await client.connect(transport);
@@ -165,7 +169,7 @@ async function main() {
   check("read_console_log errors gracefully when no game", readNoGame.isError === true);
   const restartDry = await client.callTool({ name: "dota_restart_game", arguments: { map: "dota", vconPort: 29999, dryRun: true } });
   const rt = textOf(restartDry);
-  check("restart_game dryRun has taskkill + launch + vconport", /taskkill/i.test(rt) && rt.includes("dota2.exe") && rt.includes("-vconport"));
+  check("restart_game dryRun selects one process + launch + vconport", /only the process/i.test(rt) && rt.includes("dota2.exe") && rt.includes("-vconport"));
   const shotNoGame = await client.callTool({ name: "dota_screenshot", arguments: { method: "console", vconPort: 29999 } });
   check("screenshot errors gracefully when no game", shotNoGame.isError === true && /VConsole|tools mode/i.test(textOf(shotNoGame)));
   const watchNoGame = await client.callTool({ name: "dota_watch_errors", arguments: { vconPort: 29999 } });
@@ -405,7 +409,7 @@ async function main() {
   }
 
   await client.close();
-  await rm(tmp, { recursive: true, force: true });
+  await cleanup();
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);
@@ -413,6 +417,6 @@ async function main() {
 
 main().catch(async (err) => {
   console.error("smoke test crashed:", err);
-  await rm(tmp, { recursive: true, force: true }).catch(() => {});
+  await cleanup().catch(() => {});
   process.exit(1);
 });

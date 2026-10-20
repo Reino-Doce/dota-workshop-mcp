@@ -15,6 +15,7 @@ import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run } from "./process.js";
+import { findDotaProcess } from "./target.js";
 
 export type Button = "left" | "right" | "middle";
 
@@ -76,7 +77,7 @@ export function escapeSendKeys(s: string): string {
   return s.replace(/[+^%~(){}\[\]]/g, (c) => `{${c}}`);
 }
 
-const PS_ENGINE = String.raw`param([string]$SpecPath)
+const PS_ENGINE = String.raw`param([string]$SpecPath, [int]$TargetPid)
 $ErrorActionPreference = 'Stop'
 Add-Type @"
 using System;
@@ -138,7 +139,7 @@ $performed = New-Object System.Collections.ArrayList
 
 function Emit($obj) { $obj | ConvertTo-Json -Compress -Depth 6 }
 
-$p = Get-Process dota2 -ErrorAction SilentlyContinue | Select-Object -First 1
+$p = Get-Process -Id $TargetPid -ErrorAction SilentlyContinue
 if (-not $p) { Emit @{ ok = $false; error = 'dota2.exe is not running' }; exit 0 }
 $h = $p.MainWindowHandle
 if ($h -eq 0 -or $h -eq [IntPtr]::Zero) { $h = [W32]::FindByPid([uint32]$p.Id) }
@@ -291,7 +292,7 @@ Emit @{
 `;
 
 /** Run a window/input spec against the dota2 window via one PowerShell invocation. */
-export async function runWin32Spec(spec: Win32Spec, timeoutMs = 30_000): Promise<Win32Result> {
+export async function runWin32Spec(spec: Win32Spec, timeoutMs = 30_000, vconPort?: number): Promise<Win32Result> {
   if (process.platform !== "win32") {
     return { ok: false, error: "Window/input control is only supported on Windows." };
   }
@@ -299,9 +300,11 @@ export async function runWin32Spec(spec: Win32Spec, timeoutMs = 30_000): Promise
   const psPath = join(dir, "engine.ps1");
   const specPath = join(dir, "spec.json");
   try {
+    const target = await findDotaProcess(vconPort);
+    if (!target) return { ok: false, error: "The selected Dota installation is not running." };
     await writeFile(psPath, PS_ENGINE, "utf8");
     await writeFile(specPath, JSON.stringify(spec), "utf8");
-    const res = await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psPath, specPath], { timeoutMs });
+    const res = await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psPath, specPath, String(target.pid)], { timeoutMs });
     const out = res.stdout.trim();
     const jsonStart = out.indexOf("{");
     if (jsonStart < 0) {
@@ -320,6 +323,6 @@ export async function runWin32Spec(spec: Win32Spec, timeoutMs = 30_000): Promise
 }
 
 /** Is the dota2 window present? Returns its geometry/state, or ok:false. */
-export async function dotaWindowInfo(): Promise<Win32Result> {
-  return runWin32Spec({ focus: false, window: { action: "info" } });
+export async function dotaWindowInfo(vconPort?: number): Promise<Win32Result> {
+  return runWin32Spec({ focus: false, window: { action: "info" } }, 30_000, vconPort);
 }

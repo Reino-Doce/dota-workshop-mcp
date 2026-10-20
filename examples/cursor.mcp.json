@@ -3,9 +3,9 @@
   "mcpServers": {
     "dota2-workshop": {
       "command": "node",
-      "args": ["C:\\Users\\work\\dota2-workshop-mcp\\dist\\index.js"],
+      "args": ["<absolute-path-to-mcp>/dist/index.js"],
       "env": {
-        "DOTA2_ADDON_DIR": "C:\\Users\\work\\Dota2CustomGame"
+        "DOTA2_ADDON_DIR": "<absolute-path-to-addon>"
       }
     }
   }

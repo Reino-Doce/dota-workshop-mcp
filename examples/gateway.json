@@ -1,0 +1,25 @@
+{
+  "bind": "127.0.0.1",
+  "port": 8443,
+  "vconPort": 29000,
+  "protocol": "auto",
+  "channelEndian": "auto",
+  "tls": {
+    "key": "../certificates/server.key",
+    "cert": "../certificates/server.pem",
+    "ca": "../certificates/ca.pem",
+    "requireClientCertificate": true
+  },
+  "principals": [
+    {
+      "id": "workstation",
+      "role": "admin",
+      "fingerprint256": "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+    }
+  ],
+  "policy": {
+    "allowCommands": ["status", "version", "help", "find", "cvarlist"],
+    "allowDangerous": false
+  },
+  "discovery": { "enabled": false, "name": "Dota Workshop" }
+}

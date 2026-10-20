@@ -5,6 +5,7 @@ import { readdir } from "node:fs/promises";
 import { resolveProject } from "../config.js";
 import { requireDotaPaths } from "../dota/paths.js";
 import { openDotaVpk } from "../dota/vpk.js";
+import { readBaseGameFile } from "../dota/content.js";
 import { decompilePanorama, isCompiledPanorama } from "../dota/panorama-decompile.js";
 import { parseKV, getWrapperBlock, findPair, blockToObject, listBases, isBlock } from "../kv/index.js";
 import { pathExists } from "../util/fsx.js";
@@ -131,19 +132,19 @@ export function registerAssetTools(server: McpServer) {
     {
       title: "Read a base-game file (VPK)",
       description:
-        "Read a text file from the base Dota content archive (pak01_dir.vpk), e.g. 'scripts/npc/npc_heroes.txt'. " +
+        "Read a base Dota text file, e.g. 'scripts/npc/npc_heroes.txt'. Prefers a loose file in the selected game, then pak01_dir.vpk. " +
         "Compiled Panorama (.vcss_c/.vjs_c/.vxml_c) is auto-decompiled to source.",
       inputSchema: { path: z.string(), maxChars: z.number().int().positive().max(200000).optional() },
     },
     guard(async ({ path, maxChars }): Promise<ToolResult> => {
       const dota = await requireDotaPaths();
-      const vpk = await openDotaVpk(dota.pak01DirVpk);
       try {
+        const { data, source } = await readBaseGameFile(dota, path);
         const decompiled = isCompiledPanorama(path);
-        const txt = decompiled ? decompilePanorama(await vpk.read(path), path) : await vpk.readText(path);
+        const txt = decompiled ? decompilePanorama(data, path) : data.toString("utf8");
         const cap = maxChars ?? 20000;
         return json(
-          { path, decompiled, length: txt.length, truncated: txt.length > cap },
+          { path, source, decompiled, length: txt.length, truncated: txt.length > cap },
           txt.length > cap ? txt.slice(0, cap) + `\n... (${txt.length - cap} more chars; raise maxChars)` : txt,
         );
       } catch (e) {
@@ -157,7 +158,7 @@ export function registerAssetTools(server: McpServer) {
     {
       title: "Get a base-game definition",
       description:
-        "Read a base-game hero/ability/item/unit definition from the VPK and return one entry by key (e.g. " +
+        "Read a base-game hero/ability/item/unit definition from loose content or the VPK and return one entry by key (e.g. " +
         "'npc_dota_hero_lina'). Useful to see the real fields before overriding/scaffolding. Note: #base includes " +
         "in the base file are reported but not auto-inlined.",
       inputSchema: {
@@ -167,13 +168,15 @@ export function registerAssetTools(server: McpServer) {
     },
     guard(async ({ kind, key }): Promise<ToolResult> => {
       const dota = await requireDotaPaths();
-      const vpk = await openDotaVpk(dota.pak01DirVpk);
       const file = NPC_BASE_FILES[kind];
       let txt: string;
+      let source: string;
       try {
-        txt = await vpk.readText(file);
+        const result = await readBaseGameFile(dota, file);
+        txt = result.data.toString("utf8");
+        source = result.source;
       } catch {
-        return error(`Could not read ${file} from the VPK.`);
+        return error(`Could not read ${file} from the selected game's loose content or VPK.`);
       }
       const doc = parseKV(txt);
       const wrapper = getWrapperBlock(doc);
@@ -181,12 +184,12 @@ export function registerAssetTools(server: McpServer) {
       const bases = listBases(doc);
       if (!pair) {
         return json(
-          { kind, key, found: false, bases },
+          { kind, key, found: false, bases, source },
           `"${key}" not directly in ${file}.` + (bases.length ? ` It may be in a #base include: ${bases.join(", ")} (read with vpk_read).` : ""),
         );
       }
       const value = isBlock(pair.value) ? blockToObject(pair.value) : pair.value;
-      return json({ kind, key, found: true, bases, value }, JSON.stringify({ [key]: value }, null, 2).slice(0, 8000));
+      return json({ kind, key, found: true, bases, value, source }, JSON.stringify({ [key]: value }, null, 2).slice(0, 8000));
     }),
   );
 }

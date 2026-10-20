@@ -11,7 +11,8 @@ template](https://github.com/ModDota/TypeScript-Addon-Template) it scaffolds **T
 wiring) and drives the template's `npm` scripts. It also has a raw-Lua + `resourcecompiler.exe`
 fallback for non-tstl addons.
 
-> Status: working — **107 tools**, end-to-end tested. It can search the Workshop for custom games by
+> The original Workshop tool set is retained, with installation selection, versioned API references
+> and an optional authenticated VConsole gateway added. It can search the Workshop for custom games by
 > name and download them outside the client (SteamCMD) to study, generates whole playable maps from a spec
 > (terrain shaping via the Dota tile grid + entities + waypoint paths → compile → .vpk), previews them
 > top-down as an image without launching the game, edits KV1 + KV3 (soundevents/particles) data, reads
@@ -23,6 +24,211 @@ fallback for non-tstl addons.
 > shipping games (`dota_patterns`) ships for offline use. `scaffold_td` emits both the canonical
 > waypoint tower-defense director and, with `maze: true`, a GemTD-style maze TD (grid A* pathfinder +
 > build validation that never lets players fully wall off the path).
+
+## Dota versions and VConsole
+
+Register any installation root or `dota2.exe` with `dota_register_installation`. The MCP reads
+the build number from `game/dota/steam.inf` and returns a stable `installationId` and `version`.
+Registrations persist under `~/.dota2-workshop-mcp/installations`; build metadata is read from
+the installation whenever it is discovered. Registering a path does not select it.
+In automatic mode the MCP prefers the Dota
+process owning the selected VConsole port, then the current installed build. An invalid
+explicit installation fails instead of silently selecting another build.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `DOTA2_VERSION` | `auto` | Detected build number, `auto`, or the `2017` / `current` family aliases |
+| `DOTA2_PATH` / `DOTA2_EXE` | detected | Explicit installation root or executable; wins over version |
+| `DOTA2_INSTALLATIONS_DIR` | user configuration directory | Optional directory for persistent path registrations |
+| `DOTA2_VCONPORT` | `29000` | Local VConsole TCP endpoint |
+| `DOTA2_PID` | detected | Optional exact process for window/input/restart operations |
+| `DOTA2_VCON_PROTOCOL` | `auto` | `auto`, `d2`, `d3`, or `d4` |
+| `DOTA2_VCON_CHANNEL_ENDIAN` | `auto` | Observed channel IDs are big endian; explicit `be`/`le` overrides are available |
+| `DOTA2_API_VERSION` | `auto` | API reference only: `auto`, `2017`, or `current` |
+
+Use `dota_installations` to list registered and discovered installations and their actual build
+numbers. Its `activeVersion` field identifies the selected build. Then use
+`dota_select_installation` to switch the build and port within a session:
+
+```json
+{"activeVersion":"2439","vconPort":29017}
+```
+
+If several installations share a build, select one using its returned `installationId`
+instead of `activeVersion`. Pass `{"activeVersion":"auto"}` to resume automatic selection.
+Paths are persistent; the active selection, port and optional PID apply to the current MCP
+session. For a fixed startup selection, set `DOTA2_PATH` or `DOTA2_VERSION`.
+Selection closes existing MCP connections and does not restart games.
+Calls accepting `vconPort` also use that endpoint when detecting the installation. Tools without
+that parameter follow the session selection. Restart, input and screenshots identify a process
+by executable and endpoint; ambiguous process selection fails.
+
+`dota_launch` starts a base map (`dota` by default), or a custom game when `addon` is supplied.
+Use `dryRun:true` to preview the launch. The 2017 profile adds offline/insecure flags.
+**A running map is required for the 2017 command loop**: opening only the Asset Browser can
+produce logs while commands remain unprocessed. Passing `map:""` opens only the tools hub.
+Some builds enforce a single running game even with multiple installations.
+
+`vconsole_launch` opens the selected installation's VConsole2 application and saves/selects
+a loopback device for the selected port. Other saved devices are preserved. Close existing
+VConsole2 windows before changing this setting; `configureDevice:false` opens with the saved
+settings instead. `dryRun:true` previews the executable and device change. Both tested versions
+select their GUI destination from these preferences, rather than a `-pid` command-line flag.
+The MCP controls commands and logs directly through the same binary protocol; the GUI does
+not need to be open.
+**The tested 2017 engine serves one VConsole connection at a time.** Use the MCP, standalone
+gateway or VConsole2 GUI as the connection owner; do not run them against that endpoint
+simultaneously. Before opening the GUI, call `vconsole_disconnect` and stop any standalone
+gateway. Close the GUI before reconnecting the MCP. For several LAN users, use one gateway:
+it shares its single game connection across authenticated HTTP/SSE/WebSocket clients.
+Use `vconsole_status` with `connect:true` to verify a command round trip, `vconsole_reconnect`
+for bounded automatic retries, and `vconsole_disconnect` to close the connection.
+`vconsole_logs`, `vconsole_tail` and `vconsole_audit` expose filtered events, cursors and command
+outcomes. Existing `dota_send_console_command` and DebugSDK tools share a serialized queue.
+Timeouts are errors, and commands are never automatically replayed.
+
+Live checks covered build **2439** (October 3, 2017, D3) and build **6962**
+(October 15, 2026, D4). D2 is covered by protocol fixtures, without a live D2 installation.
+The codec handles fragmented/coalesced packets, 32-bit lengths, channel tables and the
+current `CVRB` bulk table's independent version. A successful connection does not validate
+every engine command, compiler format, addon dependency or scaffold on every game version.
+Base-game reads prefer loose files before the archive: the tested 2017 depot keeps NPC
+definitions in `game/dota/scripts/npc`, while the current depot also provides them in VPKs.
+
+### Versioned API references
+
+Lua and Panorama lookup tools accept `version:"auto" | "2017" | "current"` and return provenance
+metadata. Switching versions does not share cached symbols. The 2017 Lua functions and enums
+come from complete engine help captures from build 2439. Historical class inheritance and
+Panorama declarations supplement those captures with per-symbol source labels. Panorama
+runtime help is context dependent. The current reference remains the upstream bundled
+ModDota dataset and is explicitly identified as a reference, not a dump of the installed game.
+Build 2439 is pinned to
+[GameTracking commit b0c2741](https://github.com/SteamTracking/GameTracking-Dota2/tree/b0c2741e6f27ec8dbf7c64b5dd16b09b744e8b43).
+Its build metadata and hero/ability definitions match the tested installation after line-ending
+normalization. Dataset metadata also records the twelve supplied depot/manifest pairs as decimal
+strings, with their provenance distinguished from verified local files.
+
+```sh
+npm run build:api:2439
+npm run api:capture -- --root "<installation-root>" --port 29000 --out "<new-capture-directory>"
+```
+
+The first command rebuilds the build-2439 datasets offline and verifies source hashes.
+The second captures three help commands from a running map into a **new** directory outside
+the game; it does not overwrite bundled data. See the build-specific
+[`README.md`](src/data/versions/2439/README.md) for its depot and manifest inventory, and
+[`NOTICE.md`](src/data/versions/2439/NOTICE.md) for source attributions and limits.
+Modern TypeScript dependencies, community guides and complex scaffolds are not automatically
+backported. Choose dependencies matching the selected game; raw Lua avoids that toolchain
+requirement.
+
+### Optional LAN gateway
+
+The local MCP remains stdio. An independent HTTPS service exposes only VConsole operations,
+with TLS 1.3, certificate and/or bearer authentication, viewer/operator/admin roles, command
+allowlists, per-principal rate limits and bounded log streams. Filesystem and OS tools remain
+local. Copy [`examples/gateway.json`](examples/gateway.json), supply certificate paths and
+authorized fingerprints, then run:
+
+```sh
+npm run build
+npm run gateway -- /absolute/path/to/gateway.json
+```
+
+Configuration paths are relative to the JSON file. The default bind address is loopback;
+set `bind` to the intended LAN address to expose the service. The client always connects to
+VConsole on loopback. Dota itself may listen on all interfaces, so restrict its port with the
+host firewall before enabling LAN access. Starting this service does not modify the firewall.
+Configure `DOTA2_PATH` or `DOTA2_VERSION` for the service just as for the MCP.
+
+| Endpoint | Method | Minimum role |
+| --- | --- | --- |
+| `/v1/health`, `/v1/vconsole/status`, `/v1/logs` | GET | viewer |
+| `/v1/logs/stream` (SSE), `/v1/ws/logs` (WebSocket) | GET/upgrade | viewer |
+| `/v1/commands` | POST | operator |
+| `/v1/vconsole/reconnect` | POST | admin |
+| `/v1/audit`, `/v1/metrics` | GET | admin |
+
+`POST /v1/commands` takes `{"command":"status","timeoutMs":5000}` and returns captured lines.
+Log endpoints accept `limit`, `channel`, literal `pattern` and `after` event ID. SSE also
+accepts `Last-Event-ID`; streams expire after five minutes and must be reopened with their
+cursor. The retained buffer is limited to 4,000 lines/4 MiB; an older cursor can have a gap.
+Each principal may open three streams. Slow consumers are disconnected, and throttled
+requests return `429` with `Retry-After`. WebSockets carry logs only.
+
+The default policy permits a small diagnostic command set. Separators, newlines, NUL,
+oversized commands and unknown command names are rejected. Indirect execution, scripting
+and termination commands require both explicit allowlisting and `allowDangerous:true`.
+The API returns completion of the ordered console round trip, not proof of a command's
+semantic success. Review the returned output.
+
+Certificate principals use SHA-256 certificate fingerprints. Bearer principals use
+`tokenSha256`, never the plaintext token. If both are configured for one principal, both
+must match. Set `tls.requireClientCertificate:false` only for bearer-only deployments.
+TLS verification remains enabled in either mode. Removing a principal revokes its access
+after a service restart; restart also closes existing streams. Rotate certificates/tokens
+by replacing the config and restarting the service.
+
+To obtain a client certificate fingerprint:
+
+```sh
+openssl x509 -in client.pem -noout -fingerprint -sha256
+```
+
+Use certificates from your private CA with `serverAuth`/`clientAuth` purposes; the server
+certificate must include the actual DNS name or LAN IP in its subject alternative names.
+Store private keys outside the repository and limit access to the service account.
+The example fingerprint is a placeholder and does not grant access.
+
+The bundled CLI validates the server certificate and supports:
+
+```sh
+npm run vconsole -- health
+npm run vconsole -- exec status
+npm run vconsole -- logs
+npm run vconsole -- follow
+```
+
+Set `DOTA2_GATEWAY_URL`, `DOTA2_GATEWAY_CA`, `DOTA2_GATEWAY_CERT`,
+`DOTA2_GATEWAY_KEY` and/or `DOTA2_GATEWAY_TOKEN` in its environment. mDNS discovery
+(`_dota-vconsole-mcp._tcp`) is optional and disabled by default.
+
+Audit events retain identity, source IP, request ID, duration, policy outcome and command
+hash, without command arguments or console output. Memory holds 2,000 audit events.
+Optional `auditFile` persistence rotates at 10 MiB with one previous file; health/metrics
+report write failures. Console frames are capped at 1 MiB, commands at 4 KiB UTF-8,
+the queue at 64 requests, and normal captures at 5,000 lines/2 MiB.
+
+For unattended use, run `node dist/gateway/main.js <absolute-config-path>` under a process
+supervisor with this repository as the working directory, Node 22.13+, and the service's
+explicit environment. Configure restart-on-failure and graceful termination. A Dota
+restart does not require restarting the gateway: its health endpoint stays available and
+the console reconnects with backoff. Install no game files or Valve binaries in containers
+or distribution artifacts.
+
+### Validation
+
+```sh
+npm ci
+npm test
+npm run build
+npm run smoke
+npm audit
+```
+
+Gateway integration tests generate disposable certificates using `openssl` (or the
+`OPENSSL` executable override). Tests cover malformed frames, protocol profiles, concurrent
+commands, deadlines, lost connections, mTLS failures, permissions, throttling, SSE and
+WebSockets. The smoke suite exercises the original MCP tool surface using a temporary
+addon. It may inspect the selected running game's status/window; it does not restart it.
+Live engine checks are separate from these automated tests.
+Close other VConsole clients before the 2017 live check.
+
+With a map already running, `node scripts/verify-installed.mjs 2017 29017` or
+`node scripts/verify-installed.mjs current 29000` verifies automatic discovery, a real
+console round trip, the versioned API, VPK reading and window identity through MCP.
+It previews launches without starting or stopping a game.
 
 ## Features
 
@@ -64,11 +270,11 @@ Everything is bundled so search works **offline**:
   it was learned from (distilled from a 58-game decompiled reference corpus).
 - A curated catalog of Dota 2 modding tools, libraries and references.
 
-Refresh the bundled data anytime with `npm run build:data` (re-fetches all of the above).
+Refresh current references with `npm run build:data`. This does not replace the pinned 2017 dataset.
 
 ## Requirements
 
-- Node.js ≥ 18 (developed on Node 25)
+- Node.js ≥ 22.13 (the existing asset index uses the built-in SQLite module)
 - Dota 2 + the free **Dota 2 Workshop Tools** DLC installed
 - Windows (build/launch shell out to `dota2.exe` / `resourcecompiler.exe`; KV + API tools are cross-platform)
 
@@ -89,8 +295,10 @@ The server needs to know two things:
 
 - **Which addon project** you're working on — set `DOTA2_ADDON_DIR` to the addon root (the folder
   with `package.json` / `game` / `content`), or pass `projectRoot` to any tool.
-- **Where Dota 2 is** — auto-detected from the Windows registry + `libraryfolders.vdf`. Override
-  with `DOTA2_PATH` (point it at your `dota 2 beta` folder) if detection fails.
+- **Where Dota 2 is** — register a root with `dota_register_installation` and select its
+  detected build with `dota_select_installation`. Automatic discovery also checks the selected
+  VConsole endpoint, Steam libraries and the standard default path. Override with `DOTA2_PATH`
+  or `DOTA2_EXE`, or select a registered build with `DOTA2_VERSION`.
 
 ### Claude Code
 
