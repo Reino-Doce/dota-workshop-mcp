@@ -7,15 +7,10 @@ export function vconsoleDeviceName(port: number): string {
   return `127.0.0.1:${port}`;
 }
 
-/** Both tested builds use QSettings, not -pid. A per-user named mutex covers
- * settings AND process creation, including launches from different MCP processes. */
-export async function launchVConsoleApp(executable: string, cwd: string, port: number, configureDevice: boolean, exclusiveEndpoint = false): Promise<{
-  command: string; pid: number; settings: { device: string; created: boolean } | null;
-}> {
+export function buildVConsoleLaunchScript(executable: string, cwd: string, port: number, configureDevice: boolean, exclusiveEndpoint = false): string {
   const device = vconsoleDeviceName(port);
-  if (process.platform !== "win32") throw new Error("VConsole2 application launch requires Windows.");
   const input = Buffer.from(JSON.stringify({ executable, cwd, configureDevice, exclusiveEndpoint }), "utf8").toString("base64");
-  const script = `
+  return `
 $ErrorActionPreference = 'Stop'
 $launchInput = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${input}')) | ConvertFrom-Json
 $userSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -25,16 +20,16 @@ try {
 try { $lockTaken = $launchMutex.WaitOne(15000) } catch [Threading.AbandonedMutexException] { $lockTaken = $true }
 if (!$lockTaken) { throw 'Another VConsole2 launch is in progress. Retry after it completes.' }
 $settingsResult = $null
-if ($launchInput.configureDevice) {
-if (@(Get-Process -Name vconsole2 -ErrorAction SilentlyContinue).Count -gt 0) {
-  throw 'Close existing VConsole2 windows before selecting a saved device, or use configureDevice:false to keep their current settings.'
-}
 if ($launchInput.exclusiveEndpoint) {
   $connections = @(Get-NetTCPConnection -RemotePort ${port} -State Established -ErrorAction SilentlyContinue |
     Where-Object { $_.RemoteAddress -in @('127.0.0.1', '::1') })
   if ($connections.Count -gt 0) {
     throw 'Dota 2017 serves one VConsole connection at a time. Use vconsole_disconnect or stop the other gateway/client before opening VConsole2.'
   }
+}
+if ($launchInput.configureDevice) {
+if (@(Get-Process -Name vconsole2 -ErrorAction SilentlyContinue).Count -gt 0) {
+  throw 'Close existing VConsole2 windows before selecting a saved device, or use configureDevice:false to keep their current settings.'
 }
 $settingsPath = '${VCONSOLE_SETTINGS_KEY}'
 $devicesPath = Join-Path $settingsPath 'Devices'
@@ -78,6 +73,15 @@ $guiProcess = Start-Process -FilePath $launchInput.executable -ArgumentList '-re
   $launchMutex.Dispose()
 }
 `;
+}
+
+/** Both tested builds use QSettings, not -pid. A per-user named mutex covers
+ * connection checks, settings AND process creation across MCP processes. */
+export async function launchVConsoleApp(executable: string, cwd: string, port: number, configureDevice: boolean, exclusiveEndpoint = false): Promise<{
+  command: string; pid: number; settings: { device: string; created: boolean } | null;
+}> {
+  if (process.platform !== "win32") throw new Error("VConsole2 application launch requires Windows.");
+  const script = buildVConsoleLaunchScript(executable, cwd, port, configureDevice, exclusiveEndpoint);
   const result = await run("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], { timeoutMs: 25000 });
   if (result.code !== 0) throw new Error(`Could not launch VConsole2: ${result.stderr.trim() || "launch command failed"}`);
   return { ...JSON.parse(result.stdout.trim()), command: `"${executable}" -retail` };
