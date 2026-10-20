@@ -2,9 +2,22 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { searchDocs, getDoc, listDocs, docCategories, searchTools, loadTools } from "../docs/docs.js";
 import { searchPanorama, getPanorama, panoramaStats } from "../api/panorama.js";
+import { ApiDatasetMetadata, apiMetadataSummary } from "../api/version.js";
 import { resolveDataPath } from "../util/datapath.js";
 import { readFile } from "node:fs/promises";
 import { json, text, error, guard, ToolResult } from "../util/result.js";
+
+const panoramaVersion = z.enum(["auto", "2017", "current"]).optional().describe(
+  "API dataset only; auto follows the selected installation. Overrides DOTA2_API_VERSION without changing the game.",
+);
+
+function panoramaResult(metadata: ApiDatasetMetadata, data: Record<string, unknown>, summary: string): ToolResult {
+  return json({ ...data, metadata }, `${summary}\n\n${apiMetadataSummary(metadata)}`);
+}
+
+function panoramaError(metadata: ApiDatasetMetadata, message: string): ToolResult {
+  return { ...error(`${message}\n\n${apiMetadataSummary(metadata)}`), structuredContent: { metadata } };
+}
 
 export function registerDocsTools(server: McpServer) {
   server.registerTool(
@@ -98,21 +111,25 @@ export function registerDocsTools(server: McpServer) {
       title: "Search the Panorama JS API",
       description:
         "Search the Panorama (custom UI) JavaScript API — globals ($, GameEvents, Players, Game, CustomNetTables, …), " +
-        "interfaces, and their methods/properties. Sourced from @moddota/panorama-types.",
-      inputSchema: { query: z.string(), limit: z.number().int().positive().max(100).optional() },
+        "interfaces, methods/properties and captured enums. Results identify the version and source coverage.",
+      inputSchema: { query: z.string(), limit: z.number().int().positive().max(100).optional(), version: panoramaVersion },
     },
-    guard(async ({ query, limit }): Promise<ToolResult> => {
-      const hits = await searchPanorama(query, limit);
+    guard(async ({ query, limit, version }): Promise<ToolResult> => {
+      const stats = await panoramaStats(version);
+      const { metadata } = stats;
+      const hits = await searchPanorama(query, limit, metadata.version);
       if (!hits.length) {
-        const stats = await panoramaStats();
-        return error(`No Panorama API matches for "${query}". (Indexed: ${stats.interfaces} interfaces, ${stats.globals} globals.)`);
+        return panoramaError(metadata, `No Panorama API matches for "${query}". (Indexed: ${stats.interfaces} interfaces, ${stats.globals} globals.)`);
       }
       const lines = hits.map((h) => {
         if (h.kind === "global") return `[global] ${h.name}: ${h.signature ?? "?"}`;
         if (h.kind === "member") return `[member] ${h.owner}.${h.name}  —  ${h.signature ?? ""}`;
+        if (h.kind === "enum") return `[enum] ${h.name}`;
         return `[interface] ${h.name}${h.description ? "  —  " + h.description : ""}`;
       });
-      return json({ query, count: hits.length, results: hits }, lines.join("\n"));
+      return panoramaResult(metadata, { query, count: hits.length, results: hits }, lines.map((line, i) =>
+        `${line}${hits[i].source ? ` [${hits[i].source}]` : ""}`,
+      ).join("\n"));
     }),
   );
 
@@ -123,30 +140,41 @@ export function registerDocsTools(server: McpServer) {
       description:
         "Get full details for a Panorama global (e.g. '$', 'GameEvents', 'Players'), an interface, or a member " +
         "('GameEvents.Subscribe'). Globals resolve to their interface with all members.",
-      inputSchema: { name: z.string().describe("e.g. '$', 'GameEvents', 'Players.GetLocalPlayer', 'CDOTA_PanoramaScript_GameEvents'.") },
+      inputSchema: { name: z.string().describe("e.g. '$', 'GameEvents', 'Players.GetLocalPlayer', 'CDOTA_PanoramaScript_GameEvents'."), version: panoramaVersion },
     },
-    guard(async ({ name }): Promise<ToolResult> => {
-      const res = await getPanorama(name);
-      if (!res) return error(`"${name}" not found in the Panorama API. Try panorama_api_search.`);
+    guard(async ({ name, version }): Promise<ToolResult> => {
+      const { metadata } = await panoramaStats(version);
+      const res = await getPanorama(name, metadata.version);
+      if (!res) return panoramaError(metadata, `"${name}" not found in the Panorama API. Try panorama_api_search.`);
+
+      if (res.kind === "enum") {
+        return panoramaResult(metadata, { kind: "enum", enum: res.enum },
+          `enum ${res.enum.name}\n${res.enum.members.map((m) => `  ${m.name} = ${m.value}`).join("\n")}`);
+      }
+      if (res.kind === "enum-member") {
+        return panoramaResult(metadata, { kind: "enum-member", owner: res.owner, member: res.member },
+          `${res.owner}.${res.member.name} = ${res.member.value}`);
+      }
 
       if (res.kind === "member") {
         const m = res.member;
         const lines = [`${res.owner}.${m.name}`, m.signature];
         if (m.description) lines.push("", m.description);
+        if (m.source) lines.push(`source: ${m.source}`);
         if (m.examples?.length) lines.push("", "examples:", ...m.examples.map((e) => "  " + e.replace(/\n/g, "\n  ")));
-        return json({ kind: "member", owner: res.owner, member: m }, lines.join("\n"));
+        return panoramaResult(metadata, { kind: "member", owner: res.owner, member: m }, lines.join("\n"));
       }
-      const fmtMember = (m: { signature: string; inheritedFrom?: string }) => `  ${m.signature}${m.inheritedFrom ? `   (from ${m.inheritedFrom})` : ""}`;
+      const fmtMember = (m: { signature: string; inheritedFrom?: string; source?: string }) => `  ${m.signature}${m.inheritedFrom ? `   (from ${m.inheritedFrom})` : ""}${m.source ? ` [${m.source}]` : ""}`;
       if (res.kind === "interface") {
         const i = res.iface;
         const body = `interface ${i.name}${i.extends?.length ? " extends " + i.extends.join(", ") : ""}${i.description ? "\n" + i.description : ""}\n\nmembers (${i.members.length}):\n` + i.members.map(fmtMember).join("\n");
-        return json({ kind: "interface", interface: i }, body);
+        return panoramaResult(metadata, { kind: "interface", interface: i }, body);
       }
       // global
       const g = res.global;
       const header = `${g.name}: ${g.type ?? "?"}${g.description ? "\n" + g.description : ""}`;
       const memberList = res.iface ? `\n\nmembers of ${res.iface.name} (${res.iface.members.length}):\n` + res.iface.members.map(fmtMember).join("\n") : "";
-      return json({ kind: "global", global: g, interface: res.iface }, header + memberList);
+      return panoramaResult(metadata, { kind: "global", global: g, interface: res.iface }, header + memberList);
     }),
   );
 

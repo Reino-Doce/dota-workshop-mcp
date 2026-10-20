@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "gameTracking": {
+    "repository": "https://github.com/SteamTracking/GameTracking-Dota2",
+    "commit": "b0c2741e6f27ec8dbf7c64b5dd16b09b744e8b43",
+    "committedAt": "2017-10-03T21:33:23Z",
+    "commitMessage": "2439",
+    "steamInf": {
+      "file": "game/dota/steam.inf",
+      "fields": {
+        "ClientVersion": "2439",
+        "ServerVersion": "2439",
+        "ProductName": "dota2_workshop",
+        "appID": "570",
+        "ServerAppID": "373310",
+        "CustomGameServerAppID": "471280",
+        "ToolsAppID": "316570",
+        "SourceRevision": "4163623",
+        "VersionDate": "Oct 03 2017",
+        "VersionTime": "14:17:48"
+      }
+    },
+    "builtFromCl": {
+      "file": "game/bin/built_from_cl.txt",
+      "value": "4163522"
+    },
+    "fileComparisons": [
+      {
+        "file": "game/dota/scripts/npc/npc_heroes.txt",
+        "normalization": "crlf-to-lf",
+        "localSha256": "475dd51eb2d470ad04a4f66a3ecda7ba499685b118607e1bf6e3db753c10d1de",
+        "referenceSha256": "475dd51eb2d470ad04a4f66a3ecda7ba499685b118607e1bf6e3db753c10d1de"
+      },
+      {
+        "file": "game/dota/scripts/npc/npc_abilities.txt",
+        "normalization": "crlf-to-lf",
+        "localSha256": "008c208e7213f07a4e1eaefbf8baf1b87f4b64c559639597e7ef2f488bdcd1b9",
+        "referenceSha256": "008c208e7213f07a4e1eaefbf8baf1b87f4b64c559639597e7ef2f488bdcd1b9"
+      }
+    ]
+  },
+  "steamDepots": {
+    "source": "user-provided",
+    "verification": "not-verified-with-steam",
+    "manifests": [
+      { "depotId": "401531", "manifestId": "2584546951486746157", "timestampUtc": "2017-08-04T05:01:32Z" },
+      { "depotId": "401535", "manifestId": "2143530079580212094", "timestampUtc": "2017-08-04T05:01:32Z" },
+      { "depotId": "401536", "manifestId": "7563459139404866682", "timestampUtc": "2017-08-25T22:58:55Z" },
+      { "depotId": "373301", "manifestId": "4455679832719950819", "timestampUtc": "2017-10-03T21:31:46Z" },
+      { "depotId": "373302", "manifestId": "6325604447374221668", "timestampUtc": "2017-10-03T21:31:46Z" },
+      { "depotId": "373303", "manifestId": "1595066998195080085", "timestampUtc": "2017-10-03T21:31:46Z" },
+      { "depotId": "381450", "manifestId": "5476841312133665669", "timestampUtc": "2017-10-03T21:31:46Z" },
+      { "depotId": "381451", "manifestId": "3696387136197526337", "timestampUtc": "2017-10-03T21:31:46Z" },
+      { "depotId": "381452", "manifestId": "4017046896180454612", "timestampUtc": "2017-09-22T22:03:09Z" },
+      { "depotId": "381453", "manifestId": "2666756805838218907", "timestampUtc": "2017-09-18T23:31:18Z" },
+      { "depotId": "381454", "manifestId": "2522752685000682766", "timestampUtc": "2017-09-14T22:43:31Z" },
+      { "depotId": "381455", "manifestId": "9216358069417351890", "timestampUtc": "2017-09-19T23:46:50Z" }
+    ]
+  }
+}
