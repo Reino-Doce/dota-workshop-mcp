@@ -315,6 +315,29 @@ is available at [`examples/codex.config.toml`](examples/codex.config.toml).
 These configuration locations and the MCP settings below follow the
 [official Codex MCP documentation](https://developers.openai.com/codex/mcp).
 
+For a manual setup, paste this example into your Codex `config.toml` and replace the path
+placeholders with absolute paths. Use forward slashes in paths, including on Windows:
+
+```toml
+[mcp_servers.dota2-workshop]
+command = "<absolute-path-to-node>"
+args = ["<absolute-path-to-dota-workshop-mcp>/dist/index.js"]
+cwd = "<absolute-path-to-addon>"
+startup_timeout_sec = 30
+tool_timeout_sec = 900
+env_vars = ["DOTA2_PATH", "DOTA2_EXE", "DOTA2_VERSION", "DOTA2_VCONPORT"]
+disabled_tools = ["image_generate"]
+
+[mcp_servers.dota2-workshop.env]
+DOTA2_ADDON_DIR = "<absolute-path-to-addon>"
+```
+
+Then check the entry:
+
+```sh
+codex mcp get dota2-workshop --json
+```
+
 The entry sets a 30-second startup timeout and a 900-second tool timeout because game builds
 can run for ten minutes; Codex's default tool timeout is 60 seconds. Use `--tool-timeout 1800`
 for longer workflows. This changes the client deadline, not individual tools' internal limits.
