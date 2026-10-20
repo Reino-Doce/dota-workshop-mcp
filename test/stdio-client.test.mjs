@@ -50,6 +50,13 @@ test("stdio client can initialize and use offline tools from an unrelated workin
     assert.doesNotMatch(JSON.stringify(guide), /SendUserFile|claude-remote-control|Then.*Read/);
     const prompt = await client.getPrompt({ name: "record_motion" });
     assert.ok(prompt.messages.length);
+    const prompts = await client.listPrompts();
+    const recordPrompt = prompts.prompts.find((item) => item.name === "record_motion");
+    assert.ok(recordPrompt);
+    for (const surface of [recordPrompt.description, JSON.stringify(prompt.messages)]) {
+      assert.doesNotMatch(surface, /via Read|show it animated in chat|SendUserFile/i);
+      assert.match(surface, /playback depends on the client/i);
+    }
     const config = await codexConfiguration(addon, 1200);
     assert.match(config, /tool_timeout_sec = 1200/);
     assert.ok(config.includes(JSON.stringify(addon)));
