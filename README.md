@@ -393,6 +393,14 @@ Merge [`examples/claude-desktop.config.json`](examples/claude-desktop.config.jso
 Use [`examples/cursor.mcp.json`](examples/cursor.mcp.json) at `.cursor/mcp.json` or
 `~/.cursor/mcp.json`. Any stdio MCP client works — only the config location differs.
 
+### Shared skills
+
+Repository skills live in [`.agents/skills`](.agents/skills). The `.claude/skills` directory is
+a relative symlink to that same location, so both paths use one English-language source.
+The `share-preview` skill covers asset previews, gallery selection and motion recording
+without requiring client-specific file tools. Check out Git symlinks as links
+(`core.symlinks=true`); creating them may require filesystem permissions or Developer Mode.
+
 ## Typical flow
 
 1. `dota_doctor` — confirm Dota is found, the addon is detected, and it's linked into `dota_addons`.

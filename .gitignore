@@ -9,7 +9,12 @@ dist/
 *.local.png
 
 # harness / scratch
+!/.agents/
+/.agents/*
+!/.agents/skills/
+!/.agents/skills/**
+!/.claude/
 .claude/*
-!.claude/skills/
+!.claude/skills
 exceptions.txt
 analysis/_*.log
