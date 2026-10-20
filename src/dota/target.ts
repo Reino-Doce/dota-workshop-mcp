@@ -24,10 +24,15 @@ export function selectDotaProcess(processes: DotaProcess[], executable: string, 
 
 /** Resolve by executable AND endpoint, never by the first dota2.exe process. */
 export async function findDotaProcess(port = defaultVconPort()): Promise<DotaProcess | undefined> {
-  if (process.platform !== "win32") throw new Error("Dota process control requires Windows.");
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid VConsole port.");
   const dota = await requireDotaPaths(port);
   const configured = process.env.DOTA2_PID === undefined ? undefined : Number(process.env.DOTA2_PID);
+  return findDotaProcessForInstallation(dota.dota2Exe, port, configured);
+}
+
+/** Inspect a proposed selection without consulting or changing the active session. */
+export async function findDotaProcessForInstallation(executable: string, port: number, configured?: number): Promise<DotaProcess | undefined> {
+  if (process.platform !== "win32") throw new Error("Dota process control requires Windows.");
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid VConsole port.");
   if (configured !== undefined && (!Number.isSafeInteger(configured) || configured <= 0)) throw new Error("Invalid DOTA2_PID.");
   const script = `
 $ErrorActionPreference = 'Stop'
@@ -38,5 +43,5 @@ $owner = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction Sile
   const result = await run("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], { timeoutMs: 15000 });
   if (result.code !== 0) throw new Error("Could not inspect Dota processes.");
   const data = JSON.parse(result.stdout.trim()) as { processes: DotaProcess[]; listenerPid?: number };
-  return selectDotaProcess(data.processes.filter((p) => typeof p.path === "string"), dota.dota2Exe, data.listenerPid, configured);
+  return selectDotaProcess(data.processes.filter((p) => typeof p.path === "string"), executable, data.listenerPid, configured);
 }

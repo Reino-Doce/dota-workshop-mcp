@@ -104,11 +104,13 @@ test("registered paths persist, detect builds, and drive MCP selection without m
     { activeVersion: "999999999" },
     { path: join(temporary, "missing"), vconPort: 29999 },
     { activeVersion: "2439", installationId: old.installationId },
+    { path: old.root, pid: 4294967295, vconPort: 29017 },
   ]) {
     const failure = await client.callTool({ name: "dota_select_installation", arguments: args });
     assert.equal(failure.isError, true);
     assert.equal((await resolveDotaPaths())?.root, modern.root);
     assert.equal(process.env.DOTA2_VCONPORT, "29026");
+    assert.equal(process.env.DOTA2_PID, undefined, "failed selection preserves the prior PID");
     assert.equal(getVConsole(29026), currentClient, "failed selection preserves connections");
   }
   await call("dota_select_installation", { installationId: modern.installationId });

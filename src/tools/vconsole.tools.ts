@@ -6,7 +6,7 @@ import { registeredInstallationPaths } from "../dota/installation-registry.js";
 import { buildLaunchArgs } from "../dota/launch.js";
 import { spawnDetached } from "../dota/process.js";
 import { launchVConsoleApp, vconsoleDeviceName, VCONSOLE_SETTINGS_KEY } from "../dota/vconsole-app.js";
-import { findDotaProcess } from "../dota/target.js";
+import { findDotaProcess, findDotaProcessForInstallation } from "../dota/target.js";
 import { pathExists } from "../util/fsx.js";
 import { guard, json } from "../util/result.js";
 
@@ -58,6 +58,10 @@ export function registerVConsoleTools(server: McpServer) {
     }
     const requested = activeVersion ?? version ?? "auto";
     const selected = await findDotaInstallation({ path, installationId, version: requested }, vconPort);
+    if (pid !== undefined) {
+      if (!selected) throw new Error("No installation found for the requested PID.");
+      await findDotaProcessForInstallation(selected.dota2Exe, vconPort ?? defaultVconPort(), pid);
+    }
     closeVConsoles();
     delete process.env.DOTA2_EXE;
     delete process.env.DOTA2_PATH;
