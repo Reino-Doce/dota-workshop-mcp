@@ -1,0 +1,13 @@
+# Merge this table into your existing config.toml; replace all three paths.
+[mcp_servers.dota2-workshop]
+command = "<absolute-path-to-node>"
+args = ["<absolute-path-to-mcp>/dist/index.js"]
+cwd = "<absolute-path-to-addon>"
+startup_timeout_sec = 30
+tool_timeout_sec = 900
+env_vars = ["DOTA2_PATH", "DOTA2_EXE", "DOTA2_VERSION", "DOTA2_INSTALLATIONS_DIR", "DOTA2_VCONPORT", "DOTA2_PID", "DOTA2_VCON_PROTOCOL", "DOTA2_VCON_CHANNEL_ENDIAN", "DOTA2_API_VERSION", "DOTA2_REFLIB_DIR", "DOTA2_ASSETDB", "DOTA2_FFMPEG", "DOTA2_FFMPEG_DIR", "DOTA2_VRF_DIR", "DOTA2_CLOUDFLARED", "DOTA2_CLOUDFLARED_DIR", "STEAMCMD_DIR"]
+# Optional image backend uses file credentials and undocumented endpoints.
+disabled_tools = ["image_generate"]
+
+[mcp_servers.dota2-workshop.env]
+DOTA2_ADDON_DIR = "<absolute-path-to-addon>"
