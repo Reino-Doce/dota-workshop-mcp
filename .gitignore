@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.plugin-runtime/
 *.log
 .DS_Store
 .env
@@ -13,8 +14,13 @@ dist/
 /.agents/*
 !/.agents/skills/
 !/.agents/skills/**
+!/.agents/plugins/
+!/.agents/plugins/marketplace.json
 !/.claude/
 .claude/*
 !.claude/skills
 exceptions.txt
 analysis/_*.log
+
+# Keep skill test caches out even after the skill-directory allowlist.
+__pycache__/

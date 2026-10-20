@@ -1,0 +1,128 @@
+{
+  "schema": "dota-workshop-session-v2",
+  "status": "not_executed",
+  "root": null,
+  "addon": null,
+  "source1_snapshot": null,
+  "source1_root": null,
+  "importer": {
+    "client_version": null,
+    "source_revision": null,
+    "version_date": null,
+    "steam_build_id": null,
+    "steam_build_id_evidence": null,
+    "exe_sha256": null,
+    "pid": null,
+    "command_line_observed": null,
+    "gameinfo_path_observed": null,
+    "gameinfo_sha256": null
+  },
+  "runtime_target": null,
+  "desktop": {
+    "provider": null,
+    "window_ids": {},
+    "screenshots": []
+  },
+  "runtime_capabilities": {
+    "hammer_vmf_import": {
+      "status": "not_tested",
+      "local_evidence": []
+    },
+    "source1_material_import": {
+      "status": "not_tested",
+      "local_evidence": []
+    },
+    "source1_mdl_import": {
+      "status": "not_tested",
+      "local_evidence": []
+    },
+    "source1_pcf_import": {
+      "status": "not_tested",
+      "local_evidence": []
+    },
+    "model_editor": {
+      "status": "not_tested",
+      "local_evidence": []
+    },
+    "material_editor": {
+      "status": "not_tested",
+      "local_evidence": []
+    },
+    "particle_editor": {
+      "status": "not_tested",
+      "local_evidence": []
+    },
+    "sfm": {
+      "status": "not_tested",
+      "local_evidence": []
+    },
+    "sound_tools": {
+      "status": "not_tested",
+      "local_evidence": []
+    },
+    "other_tools": []
+  },
+  "assets": [],
+  "asset_record_template": {
+    "source_logical_path": null,
+    "source_sha256": null,
+    "dependency_hashes": {},
+    "operation": null,
+    "operation_kind": null,
+    "ui_menu_or_verified_command": null,
+    "outputs": [],
+    "compiled": false,
+    "preview_verified": false,
+    "runtime_verified": false,
+    "fidelity_verified": false,
+    "limitations": [],
+    "evidence": [],
+    "input_companions": [],
+    "source_provider": null,
+    "resolved_dependencies": [],
+    "expected_outputs": [],
+    "cache_key": null,
+    "gate_status": {
+      "generated": "not_tested",
+      "compiled": "not_tested",
+      "preview_verified": "not_tested",
+      "runtime_verified": "not_tested",
+      "fidelity_verified": "not_tested"
+    },
+    "status_note": "gate_status is authoritative; retained booleans are legacy summaries, not evidence."
+  },
+  "temporary_changes": [],
+  "rollback_actions": [],
+  "unresolved": [],
+  "runtime_target_identity": {
+    "exe": null,
+    "sha256": null,
+    "client_version": null,
+    "evidence": []
+  },
+  "profile_id": null,
+  "working_directory": null,
+  "run_id": null,
+  "installation": {
+    "id": null,
+    "active_version": null,
+    "reference_family": null,
+    "steam_inf": {},
+    "evidence": []
+  },
+  "mcp": {
+    "server": null,
+    "available_tools": [],
+    "vcon_port": null,
+    "protocol": null,
+    "round_trip_verified": false,
+    "calls": [],
+    "fallback_reason": null
+  },
+  "compiler": {
+    "exe": null,
+    "sha256": null,
+    "arguments": [],
+    "evidence": []
+  }
+}
