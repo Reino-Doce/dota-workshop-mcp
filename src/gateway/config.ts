@@ -16,7 +16,7 @@ export const gatewaySchema = z.object({
   protocol: z.enum(["auto", "d2", "d3", "d4"]).default("auto"),
   channelEndian: z.enum(["auto", "le", "be"]).default("auto"),
   tls: z.object({
-    key: z.string().min(1), cert: z.string().min(1), ca: z.string().optional(),
+    key: z.string().min(1), cert: z.string().min(1), ca: z.string().min(1).optional(),
     requireClientCertificate: z.boolean().default(true),
   }).strict(),
   principals: z.array(principal).min(1).max(100),
@@ -27,8 +27,8 @@ export const gatewaySchema = z.object({
   auditFile: z.string().optional(),
   discovery: z.object({ enabled: z.boolean().default(false), name: z.string().min(1).max(63).default("Dota Workshop") }).strict().default({}),
 }).strict().superRefine((c, ctx) => {
-  if (c.tls.requireClientCertificate && !c.tls.ca) {
-    ctx.addIssue({ code: "custom", message: "mTLS requires tls.ca.", path: ["tls", "ca"] });
+  if ((c.tls.requireClientCertificate || c.principals.some((p) => p.fingerprint256)) && !c.tls.ca) {
+    ctx.addIssue({ code: "custom", message: "Client certificate authentication requires tls.ca.", path: ["tls", "ca"] });
   }
   if (new Set(c.principals.map((p) => p.id)).size !== c.principals.length) {
     ctx.addIssue({ code: "custom", message: "Principal IDs must be unique.", path: ["principals"] });
