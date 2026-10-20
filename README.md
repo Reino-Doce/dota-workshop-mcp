@@ -1,6 +1,6 @@
 # Dota 2 Workshop MCP
 
-An [MCP](https://modelcontextprotocol.io) server that lets an AI assistant (Claude Code, Claude
+An [MCP](https://modelcontextprotocol.io) server that lets an AI assistant (Codex, Claude Code, Claude
 Desktop, Cursor, …) develop **Dota 2 custom games** with the Workshop Tools: edit KeyValues,
 scaffold abilities/modifiers/items/units/heroes/Panorama, search the VScript (Lua) modding API,
 and build & launch the game.
@@ -281,8 +281,8 @@ Refresh current references with `npm run build:data`. This does not replace the 
 ## Install
 
 ```bash
-git clone https://github.com/ex3lite/Dota2_Workshop_MCP.git
-cd Dota2_Workshop_MCP
+git clone https://github.com/Reino-Doce/dota-workshop-mcp.git
+cd dota-workshop-mcp
 npm install        # also builds via the prepare script
 npm run build:data # (optional) refresh bundled VScript API + Panorama API + ModDota guides
 ```
@@ -299,6 +299,57 @@ The server needs to know two things:
   detected build with `dota_select_installation`. Automatic discovery also checks the selected
   VConsole endpoint, Steam libraries and the standard default path. Override with `DOTA2_PATH`
   or `DOTA2_EXE`, or select a registered build with `DOTA2_VERSION`.
+
+### Codex
+
+After building the server, generate a configuration entry from this checkout:
+
+```sh
+node scripts/codex-config.mjs --addon "<absolute-path-to-addon>"
+```
+
+The generator prints TOML with absolute Node, server and addon paths. It does not edit any
+client configuration. Merge the output into your existing `~/.codex/config.toml`, or the
+addon's `.codex/config.toml` for a trusted project; keep your other settings. A manual template
+is available at [`examples/codex.config.toml`](examples/codex.config.toml).
+These configuration locations and the MCP settings below follow the
+[official Codex MCP documentation](https://developers.openai.com/codex/mcp).
+
+The entry sets a 30-second startup timeout and a 900-second tool timeout because game builds
+can run for ten minutes; Codex's default tool timeout is 60 seconds. Use `--tool-timeout 1800`
+for longer workflows. This changes the client deadline, not individual tools' internal limits.
+Paths with spaces or backslashes are escaped by the generator. If using the npm alias, run
+`npm run --silent config:codex -- --addon "<absolute-path-to-addon>"` for clean TOML output.
+
+`DOTA2_ADDON_DIR` is explicit, so addon tools do not depend on where the client was started.
+The `env_vars` list forwards optional game and helper configuration from the launching
+environment. For settings that must also work when opening the desktop app independently of
+that terminal, add them to `[mcp_servers.dota2-workshop.env]`. You can also register and select
+installations through the MCP tools after connection.
+
+Verify the saved entry with `codex mcp get dota2-workshop --json` or `codex mcp list`, then
+start a new session. Configuration listing alone does not establish a live connection: ask
+for `lua_api_get` with `name:"CreateUnitByName", version:"2017"` as a read-only connection
+check, followed by `dota_installations` and `dota_doctor` for your game/addon setup.
+
+Compatibility limits:
+
+- Run the stdio server on the host that has the game and addon files. A separate remote/cloud
+  executor cannot access those paths or the local VConsole endpoint automatically.
+- The optional HTTPS gateway is a VConsole REST/SSE/WebSocket service, **not a Streamable HTTP
+  MCP endpoint**. Do not use its URL as the Codex MCP `url`; use the stdio entry above.
+- Recording returns a local GIF path. Attach, preview or link it with the client's available
+  capabilities; animation playback varies. No tool named `Read` or `SendUserFile` is required.
+- The template disables the optional `image_generate` tool. Its existing backend uses browser
+  sessions or file-based login tokens and undocumented endpoints; it is not a supported Codex
+  image-generation integration. Codex also supports credential-store and ephemeral logins,
+  which do not provide that file. Use a native image tool when available, or deliberately
+  remove this exclusion after configuring the separate backend. Do not change credential
+  storage just to satisfy this tool. See [Codex authentication](https://developers.openai.com/codex/auth).
+
+Run `npm run test:stdio` for an isolated MCP protocol check covering discovery, reference lookup,
+addon-path handling, errors, resources and prompts. It uses an SDK client and fixture addon;
+it does not launch the game or claim to verify rendering in the Codex UI.
 
 ### Claude Code
 
