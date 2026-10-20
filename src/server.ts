@@ -90,7 +90,7 @@ export function createServer(): McpServer {
     "record_motion",
     {
       title: "Record the game as an animated GIF",
-      description: "Record a short clip of the running game (or screen) and show it animated in chat via Read.",
+      description: "Record a short GIF of the running game (or screen) and provide its local artifact path. Playback depends on the client.",
     },
     () => ({
       messages: [
@@ -99,7 +99,7 @@ export function createServer(): McpServer {
           content: {
             type: "text",
             text:
-              "Record a short clip of the running Dota game and show it animated in chat.\n\n" +
+              "Record a short clip of the running Dota game and present its local GIF path using the client's supported attachment, preview or file link. Playback depends on the client; do not claim animation was viewed without observing it.\n\n" +
               SHARING_GUIDE,
           },
         },

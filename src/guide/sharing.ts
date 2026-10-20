@@ -1,10 +1,9 @@
 // Single source of truth for the server's self-description and the asset
 // preview / share / record guidance. Surfaced three MCP-native ways so the knowledge travels
-// WITH the server wherever it is installed — no repo-local Claude Code skill required:
+// WITH the server wherever it is installed — no client-specific skill required:
 //   - server `instructions`  (auto-injected into the client on connect)      -> SERVER_INSTRUCTIONS
 //   - a readable resource    dota://guide/sharing                            -> SHARING_GUIDE
 //   - invocable prompts      share_assets / record_motion                    -> SHARING_GUIDE
-// Keep this in sync with .claude/skills/share-preview/SKILL.md (same content, different delivery).
 
 /** Full how-to for showing / sharing / recording assets. Served as a resource + prompt body. */
 export const SHARING_GUIDE = `# Sharing, previewing & recording Dota assets
@@ -20,7 +19,7 @@ auto-installed on first use).
 |---|---|---|
 | "покажи / какие есть / превью пару штук" | \`asset_preview\`, \`sound_preview\` | **inline image** in chat (numbered contact sheet) — viewable over remote-access, no browser |
 | "дай посмотреть / выбрать / на телефоне / шарни / покрутить модель / послушать" | \`preview_studio\` | **public link** to an interactive gallery (animated particles, 3D models, audio players) |
-| "покажи как это двигается / запиши / гифку / эффект в движении" | \`dota_record\` then **Read** the .gif | **animated GIF inline** in chat (the one way to show motion) |
+| "покажи как это двигается / запиши / гифку / эффект в движении" | \`dota_record\` | Local GIF artifact; playback depends on the client |
 
 ## A) Inline preview (fastest, in-chat)
 
@@ -44,14 +43,14 @@ auto-installed on first use).
 4. \`preview_studio_stop\` when done.
 
 Notes:
-- The tunnel URL is **ephemeral** (changes when the gallery restarts). If an always-on daemon is
-  running on the machine, the current URL is in \`~/.claude-remote-control/preview-url.txt\`.
+- The tunnel URL is **ephemeral** (changes when the gallery restarts). Use the URL returned by
+  \`preview_studio\`; do not look for a client-specific daemon or state file.
 - Particles in the gallery are an **approximation** (additive billboards driven by the real .vpcf
   params: sprite, emission, lifespan, size-over-life, colour, gravity) — they move and glow, but
   it's not the engine renderer. Models carry their textures when those are bundled in the game's
   VPK; models reusing base-Dota textures render untextured (textures aren't in that VPK).
 
-## C) Record MOTION (animated GIF in chat)
+## C) Record motion (GIF artifact)
 
 A static screenshot can't show a particle effect playing or gameplay moving. To show **motion**
 directly in chat, record a short clip:
@@ -61,10 +60,11 @@ directly in chat, record a short clip:
   the whole desktop. Returns a \`.gif\` path.
 - **Length presets** (pick by what you're showing): \`3\` (a single cast/burst), \`5\` (default — one
   effect or action), \`10\` (a short sequence), \`15\` (a wave / rotation), \`30\` (a longer clip — drop
-  \`fps\` to ~8–10 to keep the GIF small enough for Read to render smoothly).
-- **Then \`Read\` that path** — an animated GIF opened with the Read tool **plays animated inline** in
-  chat. (This is the one way to show motion: a GIF/MP4 sent as a *file* does NOT animate; Read does.
-  Read also can't open mp4/webm — GIF is the format that works.)
+  \`fps\` to ~8–10 to keep the GIF small).
+- Present the returned absolute path using the client's supported attachment, image preview or
+  local-file link. Check available tools rather than assuming a tool with a particular name.
+  Some clients show only a still frame or a link; do not claim animation was viewed unless it
+  actually played. A remote client needs access to the artifact on the server's host.
 - Needs Dota in **Windowed/Borderless** (gdigrab can't grab exclusive-fullscreen). Internally it's a
   two-step pipeline (capture region → finite mp4 → GIF) so it never hangs.
 
@@ -76,9 +76,11 @@ user's machine). Share it only with the user's own devices, don't post it public
 
 ## Sending a generated file directly
 
-If you only need to hand over one artifact (a montage PNG, the gallery HTML), surface it with the
-harness's file-send tool (e.g. \`SendUserFile\`) instead of a link — good when there's no need for a
-live, browsable gallery.`;
+For one artifact (a montage PNG, GIF or gallery HTML), use a supported attachment or an absolute
+local-file link. File delivery and playback are client capabilities, not MCP tool names. In a
+client that supports Markdown local images, an image embed can display the artifact; otherwise
+provide a link. Do not publish a gallery solely to work around missing local playback unless the
+user wants a public link.`;
 
 /**
  * Server-wide instructions injected into the client on connect (MCP `initialize` result).
@@ -96,7 +98,7 @@ Capability map:
 SHOWING / SHARING / RECORDING ASSETS — the most common request. Choose by intent:
 - "покажи / превью пару штук" → asset_preview / sound_preview → a numbered montage IMAGE inline in chat (works over remote-access, no browser).
 - "дай выбрать / на телефоне / шарни / покрутить модель / послушать" → preview_studio → a PUBLIC Cloudflare link to an interactive gallery (animated particles, 3D models, audio); read their picks with preview_selections / preview_pick; preview_studio_stop when done.
-- "покажи в движении / запиши / гифку" → dota_record (seconds preset 3/5/10/15/30, default 5) → then Read the returned .gif path: an animated GIF opened with Read PLAYS ANIMATED inline (a GIF/MP4 sent as a file does not; Read can't open mp4/webm).
+- "покажи в движении / запиши / гифку" → dota_record (seconds preset 3/5/10/15/30, default 5) → present the returned absolute GIF path with the client's supported attachment, preview or file link. Tool names and animation playback vary by client; do not claim playback without observing it.
 
 Honest limits: models don't rasterize as inline images (gallery only); MP3 has no out-of-engine waveform (speaker tile + duration); gallery particles are an additive-billboard approximation, not the engine renderer; gdigrab can't capture exclusive-fullscreen (use Windowed/Borderless). The Cloudflare link is PUBLIC — share only with the user's own devices.
 
