@@ -1,4 +1,4 @@
-# Dota 2 Workshop MCP
+# dota-workshop-mcp
 
 An [MCP](https://modelcontextprotocol.io) server that lets an AI assistant (Codex, Claude Code, Claude
 Desktop, Cursor, …) develop **Dota 2 custom games** with the Workshop Tools: edit KeyValues,
@@ -357,7 +357,7 @@ Copy [`examples/claude-code.mcp.json`](examples/claude-code.mcp.json) to your ad
 `.mcp.json` (adjust the two paths), or:
 
 ```bash
-claude mcp add dota2-workshop --env DOTA2_ADDON_DIR=C:\path\to\addon -- node C:\path\to\Dota2_Workshop_MCP\dist\index.js
+claude mcp add dota2-workshop --env DOTA2_ADDON_DIR=C:\path\to\addon -- node C:\path\to\dota-workshop-mcp\dist\index.js
 ```
 
 ### Claude Desktop
