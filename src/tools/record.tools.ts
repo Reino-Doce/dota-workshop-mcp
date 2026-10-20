@@ -1,6 +1,6 @@
 // dota_record — record a few seconds of the Dota window (or screen) to an ANIMATED GIF.
-// Showing the GIF via the Read tool animates it inline in the chat (the one way to show
-// MOTION in chat — GIF/video sent as files don't animate). Uses ffmpeg's gdigrab (Windows).
+// Returns a local artifact; display and animation support depend on the MCP client.
+// Uses ffmpeg's gdigrab (Windows).
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { homedir } from "node:os";
@@ -19,8 +19,8 @@ export function registerRecordTools(server: McpServer) {
       title: "Record a short clip of the game as an animated GIF",
       description:
         "Record a few seconds of the Dota WINDOW (or the whole screen) to an ANIMATED GIF — for showing motion " +
-        "(particle effects, gameplay). Then Read the returned .gif path to view it ANIMATED inline in chat (GIF/MP4 sent " +
-        "as files don't animate; an animated GIF opened with Read does). Uses ffmpeg (auto-installs on first use, " +
+        "(particle effects, gameplay). Returns an absolute .gif path for the client's supported attachment, preview " +
+        "or file link; animation playback depends on the client. Uses ffmpeg (auto-installs on first use, " +
         "Windows). The game must be windowed/borderless — gdigrab can't capture exclusive-fullscreen. " +
         "Handy length presets: 3, 5, 10, 15, 30 s. e.g. dota_record seconds=5 fps=12.",
       inputSchema: {
@@ -86,7 +86,7 @@ export function registerRecordTools(server: McpServer) {
       return json(
         { path: out, seconds: sec, fps: f, width: w, bytes: st.size, target: tgt, captured, rect },
         `Recorded ${sec}s GIF — ${Math.round(st.size / 1024)} KB @ ${f}fps, captured: ${captured}.\n${out}\n` +
-          `➡ Read this path to view it ANIMATED inline in chat.`,
+          `Open or attach this local GIF with the client's supported file viewer. Animation playback depends on the client.`,
       );
     }),
   );
