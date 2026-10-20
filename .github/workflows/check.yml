@@ -15,6 +15,11 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: node --test test/stdio-client.test.mjs
+      - run: npm run test:plugin
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: python -m unittest discover -s .agents/skills/dota-workshop-tools/tests -v
       - run: npm run build:api:2439
       - run: git diff --exit-code -- src/data/versions/2439
       - run: npm audit --audit-level=high

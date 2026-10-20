@@ -26,6 +26,8 @@
     "smoke": "node scripts/smoke.mjs",
     "config:codex": "node scripts/codex-config.mjs",
     "test:stdio": "npm run build && node --test test/stdio-client.test.mjs",
+    "plugin:prepare": "node scripts/plugin-server.mjs --prepare-only",
+    "test:plugin": "node --test test/plugin.test.mjs",
     "prepare": "npm run build"
   },
   "keywords": [

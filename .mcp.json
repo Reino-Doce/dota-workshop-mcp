@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "dota2-workshop": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["scripts/plugin-server.mjs"],
+      "cwd": "./",
+      "startup_timeout_sec": 180,
+      "tool_timeout_sec": 900,
+      "env_vars": [
+        "DOTA2_ADDON_DIR",
+        "DOTA2_PATH",
+        "DOTA2_EXE",
+        "DOTA2_VERSION",
+        "DOTA2_INSTALLATIONS_DIR",
+        "DOTA2_VCONPORT",
+        "DOTA2_PID",
+        "DOTA2_VCON_PROTOCOL",
+        "DOTA2_VCON_CHANNEL_ENDIAN",
+        "DOTA2_API_VERSION",
+        "DOTA2_REFLIB_DIR",
+        "DOTA2_ASSETDB",
+        "DOTA2_FFMPEG",
+        "DOTA2_FFMPEG_DIR",
+        "DOTA2_VRF_DIR",
+        "DOTA2_CLOUDFLARED",
+        "DOTA2_CLOUDFLARED_DIR",
+        "STEAMCMD_DIR"
+      ],
+      "disabled_tools": ["image_generate"]
+    }
+  }
+}

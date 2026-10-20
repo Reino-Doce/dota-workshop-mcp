@@ -27,6 +27,64 @@ fallback for non-tstl addons.
 
 ## Dota versions and VConsole
 
+### Install the bundled plugin
+
+The repository is also a local plugin: its manifest loads the MCP server together
+with `dota-workshop-tools` and `share-preview` from the canonical `.agents/skills/`
+directory. The Workshop skill uses MCP first, with references organized by tool
+and build-specific guidance alongside each tool's workflow.
+
+With Node.js **22.13+**, npm and Git available, add this repository as a marketplace:
+
+```sh
+codex plugin marketplace add Reino-Doce/dota-workshop-mcp
+```
+
+Open the desktop app's Plugins directory, select **Dota Workshop**, and install
+**Dota Workshop Tools**. For a local checkout, use
+`codex plugin marketplace add /absolute/path/to/dota-workshop-mcp`.
+The supported compatibility manifest preserves the requested skill directory
+without duplicating the skills. See the
+[official plugin packaging guide](https://developers.openai.com/plugins/build/plugins)
+for marketplace installation and refresh behavior.
+
+The first MCP start installs the lockfile's dependencies with lifecycle scripts
+disabled, then builds the server in `.plugin-runtime/` inside the installed plugin.
+It needs registry access and a writable plugin directory. Setup logs go to stderr;
+stdout remains the MCP protocol. Later starts reuse that runtime without network
+access; changes to source, bundled data, lockfile or Node version create a new one.
+The launcher leaves the checkout's `node_modules` and `dist` alone. Concurrent
+starts share a setup lock, and failed setup can be retried.
+If setup is killed, the launcher preserves its lock because an npm child may
+still be writing. Check that those setup processes have stopped, remove only the
+lock path named in the error, and reconnect.
+
+To prebuild the copy that the host will run, execute
+`node /absolute/path/to/installed-plugin/scripts/plugin-server.mjs --prepare-only`.
+`npm run plugin:prepare` does the same for a checkout. A checkout build is not
+transferred to a separately installed plugin copy. A first-run timeout on a slow
+registry can be resolved by prebuilding that installed copy and reconnecting.
+
+After installation, use the `dota-workshop-tools` skill, register/select the
+intended Dota installation, and pass `projectRoot` to addon tools or configure
+`DOTA2_ADDON_DIR`. Installation does not select or launch a game, download
+Workshop Tools, or create an addon. The optional `image_generate` tool is disabled
+because its separate backend requires file-based credentials.
+Keep only one connection for this MCP if it is already configured manually.
+
+Validate the plugin without launching Dota:
+
+```sh
+npm run test:plugin
+python -m unittest discover -s .agents/skills/dota-workshop-tools/tests -v
+```
+
+The plugin test includes a clean source-only installation and real stdio calls;
+it needs registry access. These checks establish packaging and offline tooling,
+not successful editor imports, gameplay or rendering on an installed Dota build.
+
+### Select a Dota installation
+
 Register any installation root or `dota2.exe` with `dota_register_installation`. The MCP reads
 the build number from `game/dota/steam.inf` and returns a stable `installationId` and `version`.
 Registrations persist under `~/.dota2-workshop-mcp/installations`; build metadata is read from

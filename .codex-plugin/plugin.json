@@ -1,0 +1,12 @@
+{
+  "name": "dota-workshop-tools",
+  "version": "0.1.0",
+  "description": "Multi-version Dota Workshop tooling, asset audits and previews.",
+  "skills": "./.agents/skills/",
+  "mcpServers": "./.mcp.json",
+  "requires_local_executor": true,
+  "interface": {
+    "displayName": "Dota Workshop Tools",
+    "shortDescription": "Build, inspect and test Dota addons across versions"
+  }
+}
