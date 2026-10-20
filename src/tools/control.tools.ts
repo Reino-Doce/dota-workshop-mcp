@@ -191,8 +191,8 @@ export function registerControlTools(server: McpServer) {
       inputSchema: { vconPort: z.number().int().min(1).max(65535).optional() },
     },
     guard(async ({ vconPort }): Promise<ToolResult> => {
-      const dota = await resolveDotaPaths();
-      const win = await dotaWindowInfo();
+      const dota = await resolveDotaPaths(false, vconPort);
+      const win = await dotaWindowInfo(vconPort);
       const vc = getVConsole(vconPort);
       let vconConnected = vc.isConnected();
       if (!vconConnected) {
@@ -206,13 +206,12 @@ export function registerControlTools(server: McpServer) {
       let gameState: unknown;
       if (vconConnected) {
         const line = await (async () => {
-          const p = vc.waitForLine((l) => l.text.includes("[MCP] STATE"), 2500);
           try {
-            vc.send("mcp_state");
+            const lines = await vc.sendAndCapture("mcp_state", undefined, 2500);
+            return lines.find((l) => l.text.includes("[MCP] STATE"));
           } catch {
             return undefined;
           }
-          return p;
         })();
         if (line) {
           const m = line.text.match(/\[MCP\] STATE (\{.*\})/);
@@ -272,15 +271,9 @@ export function registerControlTools(server: McpServer) {
       }
       const re = regex ? new RegExp(pattern) : undefined;
       const test = (l: ConsoleLine) => (re ? re.test(l.text) : l.text.includes(pattern));
-      const waitP = vc.waitForLine(test, timeoutMs ?? 10000, scanRecent === true);
-      if (command) {
-        try {
-          vc.send(command);
-        } catch {
-          return error("VConsole send failed (not connected).");
-        }
-      }
-      const line = await waitP;
+      const line = command
+        ? await vc.sendAndWait(command, test, timeoutMs ?? 10000)
+        : await vc.waitForLine(test, timeoutMs ?? 10000, scanRecent === true);
       if (!line) return error(`Timed out waiting for ${regex ? "/" + pattern + "/" : '"' + pattern + '"'} after ${timeoutMs ?? 10000}ms.`);
       return json({ matched: true, line: line.text, at: line.at }, `matched: ${line.text}`);
     }),
@@ -316,7 +309,7 @@ export function registerControlTools(server: McpServer) {
       // 1) Launch if requested.
       if (launch) {
         if (!map) return error("launch:true needs a `map` to relaunch on.");
-        const dota = await requireDotaPaths();
+        const dota = await requireDotaPaths(port);
         const r = await restartGame(dota, project.addonName, map, port, true, true);
         steps.push({ step: `launch ${map}`, ok: r.reconnected, detail: `pid ${r.pid}, reconnected ${r.reconnected}` });
       }
@@ -333,13 +326,13 @@ export function registerControlTools(server: McpServer) {
 
       // 3) DebugSDK ping (informational).
       {
-        const pong = vc.waitForLine((l) => l.text.includes("[MCP] PONG"), 1500);
+        let got: ConsoleLine | undefined;
         try {
-          vc.send("mcp_ping");
+          const lines = await vc.sendAndCapture("mcp_ping", undefined, 1500);
+          got = lines.find((l) => l.text.includes("[MCP] PONG"));
         } catch {
           /* ignore */
         }
-        const got = await pong;
         steps.push({ step: "DebugSDK ping", ok: !!got, detail: got ? got.text : "no PONG — asserts need the DebugSDK attached" });
       }
 
@@ -355,13 +348,12 @@ export function registerControlTools(server: McpServer) {
         // Send as ONE quoted token (like dota_lua_eval) so multi-token/quoted/multiline
         // asserts survive the console; match on the same normalized form the SDK echoes.
         const norm = expr.replace(/\r?\n/g, " ").replace(/"/g, "'");
-        const want = vc.waitForLine((l) => l.text.includes("[MCP] ASSERT") && l.text.includes(norm.slice(0, 40)), 4000);
+        let line: ConsoleLine | undefined;
         try {
-          vc.send(`mcp_assert ${quoteLua(expr)}`);
+          line = await vc.sendAndWait(`mcp_assert ${quoteLua(expr)}`, (l) => l.text.includes("[MCP] ASSERT") && l.text.includes(norm.slice(0, 40)), 4000);
         } catch {
           /* ignore */
         }
-        const line = await want;
         const pass = !!line && /\[MCP\] ASSERT PASS/.test(line.text);
         steps.push({ step: `assert: ${expr}`, ok: pass, detail: line?.text ?? "no response from DebugSDK" });
       }
@@ -376,7 +368,7 @@ export function registerControlTools(server: McpServer) {
       // 7) Screenshot.
       let shot: { buf: Buffer } | undefined;
       if (screenshot !== false) {
-        const cap = await captureWindowPng("screen", true);
+        const cap = await captureWindowPng("screen", true, port);
         if (cap.buf) shot = { buf: cap.buf };
         steps.push({ step: "screenshot", ok: !!cap.buf, detail: cap.buf ? `${Math.round(cap.buf.length / 1024)} KB` : cap.error });
       }

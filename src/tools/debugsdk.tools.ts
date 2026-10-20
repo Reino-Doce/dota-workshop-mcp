@@ -84,14 +84,12 @@ export function registerDebugSdkTools(server: McpServer) {
         return error(VCON_HINT);
       }
       const test = (l: ConsoleLine) => /\[MCP\] EVAL_(OK|ERR)/.test(l.text);
-      const waitP = vc.waitForLine(test, timeoutMs ?? 5000);
+      let line: ConsoleLine;
       try {
-        vc.send(`mcp_eval ${quoteLua(code)}`);
-      } catch {
-        return error(VCON_HINT);
+        line = await vc.sendAndWait(`mcp_eval ${quoteLua(code)}`, test, timeoutMs ?? 5000);
+      } catch (err) {
+        return error(`DebugSDK evaluation failed: ${err instanceof Error ? err.message : String(err)}`);
       }
-      const line = await waitP;
-      if (!line) return error("No response from DebugSDK (mcp_eval). Is it attached & loaded? Try dota_send_console_command mcp_ping.");
       const ok = /\[MCP\] EVAL_OK/.test(line.text);
       const payload = line.text.replace(/^.*\[MCP\] EVAL_(OK|ERR)\s?/, "");
       let value: unknown = payload;
@@ -128,14 +126,12 @@ export function registerDebugSdkTools(server: McpServer) {
         return error(VCON_HINT);
       }
       const test = (l: ConsoleLine) => l.text.includes("[MCP] DUMP") && l.text.includes(sec);
-      const waitP = vc.waitForLine(test, timeoutMs ?? 5000);
+      let line: ConsoleLine;
       try {
-        vc.send(`mcp_dump ${sec}`);
-      } catch {
-        return error(VCON_HINT);
+        line = await vc.sendAndWait(`mcp_dump ${sec}`, test, timeoutMs ?? 5000);
+      } catch (err) {
+        return error(`DebugSDK dump failed: ${err instanceof Error ? err.message : String(err)}`);
       }
-      const line = await waitP;
-      if (!line) return error(`No DUMP response for "${sec}". Is the DebugSDK attached & loaded?`);
       // Array first: heroes/units dumps are a top-level [..]; an object-first alt would
       // wrongly capture the inner {..},{..} and fail to parse.
       const m = line.text.match(/(\[.*\]|\{.*\})\s*$/);

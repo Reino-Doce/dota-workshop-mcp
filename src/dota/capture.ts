@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run } from "./process.js";
 import { dotaBlockerHint } from "./diagnose.js";
+import { findDotaProcess } from "./target.js";
 
 export type WindowCaptureMode = "screen" | "print";
 
@@ -25,7 +26,7 @@ export interface WindowCaptureResult {
   error?: string;
 }
 
-const PS_SCRIPT = String.raw`param([string]$Out, [string]$Mode, [string]$Focus)
+const PS_SCRIPT = String.raw`param([string]$Out, [string]$Mode, [string]$Focus, [int]$TargetPid)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -68,7 +69,7 @@ public class WinCap {
 }
 "@
 [void][WinCap]::SetProcessDPIAware()
-$p = Get-Process dota2 -ErrorAction SilentlyContinue | Select-Object -First 1
+$p = Get-Process -Id $TargetPid -ErrorAction SilentlyContinue
 if (-not $p) { throw 'dota2.exe is not running' }
 $h = $p.MainWindowHandle
 if ($h -eq 0 -or $h -eq [IntPtr]::Zero) { $h = [WinCap]::FindByPid([uint32]$p.Id) }
@@ -106,16 +107,19 @@ $bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
 export async function captureWindowPng(
   mode: WindowCaptureMode = "screen",
   focus = true,
+  vconPort?: number,
 ): Promise<WindowCaptureResult> {
   if (process.platform !== "win32") return { mode, error: "Window capture is only supported on Windows." };
   const dir = await mkdtemp(join(tmpdir(), "d2shot-"));
   const ps1 = join(dir, "cap.ps1");
   const out = join(dir, "shot.png");
   try {
+    const target = await findDotaProcess(vconPort);
+    if (!target) return { mode, error: "The selected Dota installation is not running." };
     await writeFile(ps1, PS_SCRIPT, "utf8");
     const res = await run(
       "powershell",
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, out, mode, focus ? "true" : "false"],
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, out, mode, focus ? "true" : "false", String(target.pid)],
       { timeoutMs: 25_000 },
     );
     const buf = await readFile(out).catch(() => undefined);
@@ -147,7 +151,7 @@ export interface WindowRect {
 // Compact rect-finder: same EnumWindows-by-PID strategy as PS_SCRIPT (largest window titled
 // exactly "Dota 2", falling back to the largest window of the process). Optionally brings the
 // window to the foreground so a subsequent screen-region grab isn't occluded by other windows.
-const PS_RECT = String.raw`param([string]$Focus)
+const PS_RECT = String.raw`param([string]$Focus, [int]$TargetPid)
 $ErrorActionPreference = 'Stop'
 Add-Type @"
 using System;
@@ -186,7 +190,7 @@ public class WinRect {
 }
 "@
 [void][WinRect]::SetProcessDPIAware()
-$p = Get-Process dota2 -ErrorAction SilentlyContinue | Select-Object -First 1
+$p = Get-Process -Id $TargetPid -ErrorAction SilentlyContinue
 if (-not $p) { throw 'dota2.exe is not running' }
 $h = $p.MainWindowHandle
 if ($h -eq 0 -or $h -eq [IntPtr]::Zero) { $h = [WinRect]::FindByPid([uint32]$p.Id) }
@@ -222,10 +226,12 @@ export async function getDotaWindowRect(focus = true): Promise<WindowRect | null
   const dir = await mkdtemp(join(tmpdir(), "d2rect-"));
   const ps1 = join(dir, "rect.ps1");
   try {
+    const target = await findDotaProcess();
+    if (!target) return null;
     await writeFile(ps1, PS_RECT, "utf8");
     const res = await run(
       "powershell",
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, focus ? "true" : "false"],
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, focus ? "true" : "false", String(target.pid)],
       { timeoutMs: 20_000 },
     );
     const m = res.stdout.match(/\{[^}]*\}/);

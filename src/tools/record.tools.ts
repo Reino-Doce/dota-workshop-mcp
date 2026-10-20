@@ -44,10 +44,10 @@ export function registerRecordTools(server: McpServer) {
       // gdigrab can grab the whole virtual desktop ("-i desktop"), or a screen REGION via
       // -offset_x/-offset_y/-video_size (raw screen coords). To record just the game we find the
       // dota window rect, bring it to the foreground (so it isn't occluded), and grab that region.
-      // Falling back to the full desktop guarantees we never hang waiting for a window by title.
       let rect = null as Awaited<ReturnType<typeof getDotaWindowRect>>;
       if (tgt === "game") {
         rect = await getDotaWindowRect(true).catch(() => null);
+        if (!rect) return error("The selected Dota window is unavailable. Select the correct installation/PID or request target='screen' explicitly.");
       }
 
       // Two-step, because a single-pass palettegen on a LIVE source HANGS: palettegen buffers the

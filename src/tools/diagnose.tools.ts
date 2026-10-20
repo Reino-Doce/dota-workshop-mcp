@@ -22,11 +22,12 @@ export function registerDiagnoseTools(server: McpServer) {
         "process health (RAM/CPU). Run this whenever a capture is empty or the game seems hung. " +
         "Use dota_dismiss_dialog to clear a blocker.",
       inputSchema: {
+        vconPort: z.number().int().min(1).max(65535).optional(),
         capture: z.boolean().optional().describe("Also attach a PrintWindow screenshot of each blocking dialog (renders even when hidden). Default false."),
       },
     },
-    guard(async ({ capture }): Promise<ToolResult> => {
-      const d = await diagnoseDota();
+    guard(async ({ capture, vconPort }): Promise<ToolResult> => {
+      const d = await diagnoseDota(vconPort);
       const content: ContentItem[] = [{ type: "text", text: d.summary }];
       if (capture && d.blockers.length) {
         for (const b of d.blockers) {
@@ -60,13 +61,14 @@ export function registerDiagnoseTools(server: McpServer) {
         "Minidump, Abort/Kill); to use one of those, pass its exact label in `button`. By default it dismisses " +
         "the single most-severe blocker; set all=true to clear every blocking dialog.",
       inputSchema: {
+        vconPort: z.number().int().min(1).max(65535).optional(),
         hwnd: z.string().optional().describe("Target a specific dialog window by hwnd (from dota_diagnose). Default: the most-severe blocker."),
         button: z.string().optional().describe("Exact button label to click (ampersands ignored). Default: an auto-picked safe button."),
         all: z.boolean().optional().describe("Dismiss every blocking dialog, not just one. Default false."),
       },
     },
-    guard(async ({ hwnd, button, all }): Promise<ToolResult> => {
-      const d = await diagnoseDota();
+    guard(async ({ hwnd, button, all, vconPort }): Promise<ToolResult> => {
+      const d = await diagnoseDota(vconPort);
       if (!d.running) return error("dota2.exe is not running — nothing to dismiss.");
       if (!d.blocked) return json({ blocked: false }, "No blocking dialogs detected. ✅ Nothing to dismiss.");
 
@@ -90,7 +92,7 @@ export function registerDiagnoseTools(server: McpServer) {
       }
 
       // Re-check so the caller knows whether the game actually unblocked.
-      const after = await diagnoseDota();
+      const after = await diagnoseDota(vconPort);
       const lines = results.map((r) => (r.clicked ? `✓ [${r.role}] "${r.title}" → clicked "${r.clicked}"` : `✗ [${r.role}] "${r.title}" → ${r.error}`));
       lines.push("");
       lines.push(after.blocked ? `⚠ Still blocked by ${after.blockers.length} dialog(s) after dismissing.` : "✅ No blocking dialogs remain — game thread should resume.");
