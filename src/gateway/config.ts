@@ -33,6 +33,22 @@ export const gatewaySchema = z.object({
   if (new Set(c.principals.map((p) => p.id)).size !== c.principals.length) {
     ctx.addIssue({ code: "custom", message: "Principal IDs must be unique.", path: ["principals"] });
   }
+  for (let i = 0; i < c.principals.length; i++) {
+    for (let j = 0; j < i; j++) {
+      const a = c.principals[i], b = c.principals[j];
+      // A missing factor imposes no constraint, so both principals can match
+      // one request unless a factor required by both has different values.
+      const overlaps = (["tokenSha256", "fingerprint256"] as const).every((factor) =>
+        !a[factor] || !b[factor] || a[factor].toLowerCase() === b[factor].toLowerCase(),
+      );
+      if (overlaps) {
+        ctx.addIssue({
+          code: "custom", message: `Credentials overlap with principal at index ${j}.`,
+          path: ["principals", i],
+        });
+      }
+    }
+  }
 });
 
 export type GatewayConfig = z.infer<typeof gatewaySchema>;
