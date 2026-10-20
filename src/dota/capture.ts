@@ -124,7 +124,7 @@ export async function captureWindowPng(
     );
     const buf = await readFile(out).catch(() => undefined);
     if (!buf || !buf.length) {
-      const blocker = await dotaBlockerHint();
+      const blocker = await dotaBlockerHint(vconPort);
       return { mode, error: `Capture produced no image. ${res.stderr.slice(-300) || res.stdout.slice(-300)}`.trim() + blocker };
     }
     return { buf, mode };

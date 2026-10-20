@@ -231,9 +231,9 @@ function buildSummary(d: Pick<DotaDiagnosis, "running" | "processes" | "blocked"
 }
 
 /** One-line hint for appending to other tools' empty-capture errors, or "" when healthy. */
-export async function dotaBlockerHint(): Promise<string> {
+export async function dotaBlockerHint(vconPort?: number): Promise<string> {
   try {
-    const d = await diagnoseDota();
+    const d = await diagnoseDota(vconPort);
     if (!d.running || !d.blocked) return "";
     const b = d.blockers[0];
     const first = (b.message || "").split("\n").find((l) => /assert|map |using|error|stall|crash/i.test(l)) || b.title;
